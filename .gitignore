@@ -42,3 +42,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Supabase CLI local-only artifacts (Phase 1: local stack for migration testing)
+supabase/.branches/
+supabase/.temp/
+
+# Test-fixture copy: staged into migrations/ only during a local test run
+# (npm run db:test:reset). Must never be committed as a real migration.
+supabase/migrations/000_public_schema_fixture.sql
+
+# Local agent/editor tooling — machine-specific, not project config.
+.claude/
