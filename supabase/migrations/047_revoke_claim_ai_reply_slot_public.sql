@@ -1,0 +1,70 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
+-- ============================================================
+-- 047_revoke_claim_ai_reply_slot_public — SECURITY FIX
+--
+-- Found by the read-only PostgREST exposure audit run immediately after
+-- `crm` was added to the Data API's exposed schemas (2026-08-04).
+--
+-- THE GAP
+--   crm.claim_ai_reply_slot(uuid, integer) is SECURITY DEFINER and
+--   performs:
+--     UPDATE conversations SET ai_reply_count = ai_reply_count + 1
+--     WHERE id = $1 AND ai_reply_count < $2
+--   Migration 029 created it and GRANTed EXECUTE to service_role, and
+--   031 re-granted service_role while fixing a different bug — but
+--   NEITHER revoked PostgreSQL's default EXECUTE-to-PUBLIC. Migration
+--   041's enumerated revoke list also omitted it.
+--
+--   Once `crm` became a PostgREST-exposed schema, that default made the
+--   function callable by `anon` at POST /rest/v1/rpc/claim_ai_reply_slot.
+--   Confirmed live BEFORE the fix: the call returned 22P02 (invalid uuid
+--   syntax), NOT 42501 — i.e. the caller was authorised and only the
+--   argument parse failed. Because the function is SECURITY DEFINER it
+--   bypasses RLS.
+--
+--   Impact was low but real: no data disclosure (returns a boolean), and
+--   the target conversations.id is an unguessable v4 UUID — but an
+--   anonymous caller who learned an id could exhaust that thread's AI
+--   auto-reply budget, and the boolean is a weak existence oracle.
+--   crm.conversations held 0 rows at the time of the fix.
+--
+--   Confirmed AFTER the fix: anon now receives
+--   `42501 permission denied for function claim_ai_reply_slot`, for both
+--   malformed and well-formed uuid arguments — denial happens before
+--   argument parsing.
+--
+-- THE FIX
+--   Close the PUBLIC default. service_role keeps EXECUTE via its own
+--   explicit grant from 029/031, which survives a PUBLIC revoke.
+--   Verified before applying: the only call site in this repo is
+--   src/lib/ai/auto-reply.ts, which uses supabaseAdmin() (service role).
+--   No authenticated or anonymous code path calls this RPC.
+--
+--   This restores the privilege model 041 states in its own header:
+--   "every new function declares its own REVOKE/GRANT... this file must
+--   never issue a blanket function grant."
+--
+-- NUMBERING
+--   This takes the 047 slot that PHASE2_CANONICAL_PLAN.md §2 had
+--   reserved for Phase 2B. Phase 2B is not designed yet, so nothing is
+--   displaced — 2B starts at 048+. Update that reservation note.
+--
+-- PROVENANCE
+--   This file was written to MATCH a change already applied to
+--   production on 2026-08-04 via Supabase MCP apply_migration (ledger
+--   name: 047_revoke_claim_ai_reply_slot_public). It exists so a
+--   from-zero local run (`npm run db:test:reset`) reproduces production
+--   rather than silently rebuilding the vulnerable state. Do not apply
+--   it to production again — it is already there, and it is idempotent
+--   in any case.
+--
+-- Idempotent — REVOKE of an already-absent privilege is a no-op.
+-- ============================================================
+
+REVOKE ALL ON FUNCTION crm.claim_ai_reply_slot(uuid, integer) FROM PUBLIC;
+
+-- Re-assert the intended grant explicitly, so this file is a complete,
+-- readable statement of who may execute this function.
+GRANT EXECUTE ON FUNCTION crm.claim_ai_reply_slot(uuid, integer) TO service_role;
