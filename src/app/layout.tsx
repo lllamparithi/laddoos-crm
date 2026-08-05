@@ -9,6 +9,7 @@ import { ThemedToaster } from "@/components/themed-toaster";
 import {
   DEFAULT_MODE,
   DEFAULT_THEME,
+  LEGACY_THEME_ALIASES,
   MODE_STORAGE_KEY,
   MODES,
   STORAGE_KEY,
@@ -22,10 +23,12 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: "AE Yali - Omni",
+    // "·" rather than an em dash — the brand name already contains a
+    // hyphen, and "Contacts — AE Yali - Omni" reads as two separators.
+    template: "%s · AE Yali - Omni",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: "Founder operations dashboard — customers, conversations and activity in one place.",
   robots: {
     index: false,
     follow: false,
@@ -41,7 +44,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
+  themeColor: "#080C1A", // AE dark surface — matches --background in globals.css
   colorScheme: "dark light",
 };
 
@@ -55,6 +58,12 @@ export const viewport: Viewport = {
 // browser can run as a single <script>. Knowledge of valid ids is
 // sourced from the THEME_IDS / MODES constants so adding one doesn't
 // silently break the boot path.
+//
+// It is also where a retired theme id gets migrated. This is the first
+// and only code to read `wacrm.theme` before paint, so rewriting the
+// stored value here means a browser holding a retired id (`cobalt`)
+// self-heals on its next load rather than carrying an unrecognised
+// string forever. See LEGACY_THEME_ALIASES in `src/lib/themes.ts`.
 const THEME_BOOT_SCRIPT = `
 (function(){
   var d = document.documentElement;
@@ -62,8 +71,22 @@ const THEME_BOOT_SCRIPT = `
     var THEME_KEY = ${JSON.stringify(STORAGE_KEY)};
     var THEME_DEFAULT = ${JSON.stringify(DEFAULT_THEME)};
     var THEMES = ${JSON.stringify(THEME_IDS)};
+    var THEME_ALIASES = ${JSON.stringify(LEGACY_THEME_ALIASES)};
     var savedTheme = localStorage.getItem(THEME_KEY);
-    d.dataset.theme = THEMES.indexOf(savedTheme) !== -1 ? savedTheme : THEME_DEFAULT;
+    var aliased = Object.prototype.hasOwnProperty.call(THEME_ALIASES, savedTheme)
+      ? THEME_ALIASES[savedTheme]
+      : null;
+    if (aliased) {
+      d.dataset.theme = aliased;
+      // Own try/catch: a setItem failure (private browsing, quota) must
+      // not fall through to the outer catch and clobber the correct
+      // accent we just applied.
+      try { localStorage.setItem(THEME_KEY, aliased); } catch (_w) {}
+    } else {
+      // Unrecognised junk falls back to the default WITHOUT persisting —
+      // writing here would pin the user to today's default forever.
+      d.dataset.theme = THEMES.indexOf(savedTheme) !== -1 ? savedTheme : THEME_DEFAULT;
+    }
 
     var MODE_KEY = ${JSON.stringify(MODE_STORAGE_KEY)};
     var MODE_DEFAULT = ${JSON.stringify(DEFAULT_MODE)};

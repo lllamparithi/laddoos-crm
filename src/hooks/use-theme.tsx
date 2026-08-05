@@ -16,6 +16,7 @@ import {
   STORAGE_KEY,
   isMode,
   isThemeId,
+  resolveThemeId,
   type Mode,
   type ThemeId,
 } from "@/lib/themes";
@@ -55,8 +56,11 @@ function readInitialTheme(): ThemeId {
   const fromAttr = document.documentElement.dataset.theme;
   if (isThemeId(fromAttr)) return fromAttr;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (isThemeId(stored)) return stored;
+    // resolveThemeId, not isThemeId: on this path the boot script never
+    // ran, so a retired id (`cobalt`) is still sitting in storage and
+    // should map to its replacement rather than fall to the default.
+    const resolved = resolveThemeId(localStorage.getItem(STORAGE_KEY));
+    if (resolved) return resolved;
   } catch {
     // localStorage can throw in private-browsing / sandboxed contexts.
   }

@@ -147,7 +147,40 @@ html[data-mode="light"] {
 
 /* ---- ACCENT: primary color ---- */
 
+/* Azul — Azul Elefant brand blue, the default.
+   Replaced the upstream `cobalt` theme rather than sitting alongside it:
+   cobalt was oklch(0.585 0.2 254), visually the same blue, so keeping
+   both would have put two indistinguishable options in the picker.
+   Retired ids are migrated at boot — see LEGACY_THEME_ALIASES.
+
+   The oklch values are not "nice" numbers: they are the ones that paint
+   the exact brand hex. Verified by reading painted canvas pixels in a
+   real browser, not by conversion math.
+     --primary  oklch(0.573 0.195 258)   -> #1A73E8  Azul Blue
+     --chart-2  oklch(0.88 0.15 166.5)   -> #5EF7C2  Electric Mint
+   Rounder values (0.574 / 0.881 0.15 167) land a channel off. If you
+   retune these, re-check against the hex rather than trusting the math.
+
+   --primary-foreground is PURE white here, not the oklch(0.985 0 0) the
+   other themes use. Azul is a light-ish blue: #FAFAFA on it measures
+   4.32:1, under the 4.5:1 WCAG AA floor for normal text. Pure white
+   measures 4.505:1 and clears it. Do not "harmonise" this back to
+   0.985 — that silently drops every primary button below AA. */
 :root,
+html[data-theme="azul"] {
+  --primary: oklch(0.573 0.195 258);
+  --primary-foreground: oklch(1 0 0);
+  --primary-hover: oklch(0.65 0.18 258);
+  --primary-soft: oklch(0.573 0.195 258 / 0.12);
+  --primary-soft-2: oklch(0.573 0.195 258 / 0.22);
+  --ring: oklch(0.573 0.195 258);
+  --chart-1: oklch(0.573 0.195 258);
+  --chart-2: oklch(0.88 0.15 166.5);
+  --sidebar-primary: oklch(0.573 0.195 258);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.573 0.195 258);
+}
+
 html[data-theme="violet"] {
   --primary: oklch(0.526 0.247 293);
   --primary-foreground: oklch(0.985 0 0);
@@ -173,20 +206,6 @@ html[data-theme="emerald"] {
   --sidebar-primary: oklch(0.62 0.16 162);
   --sidebar-primary-foreground: oklch(0.16 0.02 162);
   --sidebar-ring: oklch(0.62 0.16 162);
-}
-
-html[data-theme="cobalt"] {
-  --primary: oklch(0.585 0.2 254);
-  --primary-foreground: oklch(0.985 0 0);
-  --primary-hover: oklch(0.66 0.18 254);
-  --primary-soft: oklch(0.585 0.2 254 / 0.12);
-  --primary-soft-2: oklch(0.585 0.2 254 / 0.22);
-  --ring: oklch(0.585 0.2 254);
-  --chart-1: oklch(0.585 0.2 254);
-  --chart-2: oklch(0.7 0.15 220);
-  --sidebar-primary: oklch(0.585 0.2 254);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-ring: oklch(0.585 0.2 254);
 }
 
 html[data-theme="amber"] {
