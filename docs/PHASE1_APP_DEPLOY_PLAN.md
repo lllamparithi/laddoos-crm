@@ -47,7 +47,7 @@ config are **read-only** here — §3.4 opens that file to *learn* the
 conventions, never to change them.
 
 The CRM is added exactly one way: a **new, separate compose file** under
-`/opt/laddoos-crm/`, written **only after Step 0 (§3.1, §3.2) has confirmed
+`/docker/laddoos-crm/`, written **only after Step 0 (§3.1, §3.2) has confirmed
 the real network name and certresolver name**. Until those two values are
 observed, §7 is a template with placeholders, not something to run.
 
@@ -231,8 +231,16 @@ waha 748 MB · hermes-agent 458 MB · n8n 439 MB · traefik 116 MB
 
 ## 4. Required environment variables
 
-Lives in `/opt/laddoos-crm/.env.local` on the VPS, mode `600`, owned by root.
+Lives in `/docker/laddoos-crm/.env.local` on the VPS, mode `600`, owned by root.
 **Never committed.**
+
+> **Path decided 2026-08-05: `/docker/laddoos-crm/`, not `/opt/laddoos-crm/`.**
+> An earlier revision of this plan used `/opt/`. The box's actual convention,
+> confirmed by Step 0, is `/docker/<project>/` for Docker Compose projects
+> (`/docker/n8n/`, `/docker/hermes-agent-azc8/`) and `/opt/` for systemd
+> services (`/opt/laddoos-gemini-live/`). The CRM is a Compose project, so it
+> belongs under `/docker/`. Nothing functional depends on this — it is
+> consistency, per §3.4's "do not invent a second convention."
 
 ### Build-time — inlined into the client bundle, changing one needs a rebuild
 
@@ -327,7 +335,7 @@ none of which I have taken:
 | Option | What it means | Cost |
 |---|---|---|
 | **A. Commit + push, clone on VPS** | The normal path. Requires lifting the no-commit hold and the still-open PR review | Cleanest provenance, reproducible deploys |
-| **B. `rsync` the working tree** | `rsync -az --exclude node_modules --exclude .next --exclude .git ./ root@VPS:/opt/laddoos-crm/` | Works today, but the deployed bytes match no commit — rollback has nothing to roll back *to* |
+| **B. `rsync` the working tree** | `rsync -az --exclude node_modules --exclude .next --exclude .git ./ root@VPS:/docker/laddoos-crm/` | Works today, but the deployed bytes match no commit — rollback has nothing to roll back *to* |
 | **C. Build image locally, push to a registry** | Needs a registry and a local Docker build | Extra moving part for one app |
 
 **Recommendation: A**, because §10's rollback plan is only real if a previous
@@ -339,7 +347,7 @@ and it is the **next gate** at the top of this document.
 
 ## 7. Compose override with Traefik labels
 
-New file `/opt/laddoos-crm/docker-compose.override.yml`. The committed
+New file `/docker/laddoos-crm/docker-compose.override.yml`. The committed
 `docker-compose.yml` is **not edited** — Compose merges the override.
 
 **Finalised 2026-08-05** — every placeholder resolved by Step 0. No `<...>`
@@ -429,7 +437,7 @@ Four things that will bite if skipped:
 ## 9. Build and start
 
 ```bash
-# on the VPS, in /opt/laddoos-crm
+# on the VPS, in /docker/laddoos-crm
 docker compose --env-file .env.local config          # 1. render + validate, changes nothing
 docker compose --env-file .env.local build           # 2. build only — watch memory here
 docker compose --env-file .env.local up -d           # 3. start
