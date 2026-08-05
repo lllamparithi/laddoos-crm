@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- Conversational Flows: stateful, branching WhatsApp chatbot.
 --
@@ -273,8 +276,8 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'flow_runs'
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'crm' AND tablename = 'flow_runs'
   ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE flow_runs;
+    ALTER PUBLICATION supabase_realtime ADD TABLE crm.flow_runs;
   END IF;
 END $$;

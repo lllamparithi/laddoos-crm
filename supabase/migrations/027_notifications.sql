@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- NOTIFICATIONS
 -- ============================================================
@@ -57,7 +60,7 @@ CREATE OR REPLACE FUNCTION notify_conversation_assigned()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_contact_name TEXT;
@@ -124,8 +127,8 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'notifications'
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'crm' AND tablename = 'notifications'
   ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+    ALTER PUBLICATION supabase_realtime ADD TABLE crm.notifications;
   END IF;
 END $$;

@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 030_ai_knowledge.sql — AI knowledge base (RAG grounding)
 --
@@ -72,7 +75,7 @@ DROP POLICY IF EXISTS ai_knowledge_documents_delete ON ai_knowledge_documents;
 CREATE POLICY ai_knowledge_documents_delete ON ai_knowledge_documents FOR DELETE
   USING (is_account_member(account_id, 'admin'));
 
-CREATE OR REPLACE FUNCTION public.update_ai_knowledge_documents_updated_at()
+CREATE OR REPLACE FUNCTION crm.update_ai_knowledge_documents_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = now();
@@ -84,7 +87,7 @@ DROP TRIGGER IF EXISTS ai_knowledge_documents_updated_at ON ai_knowledge_documen
 CREATE TRIGGER ai_knowledge_documents_updated_at
   BEFORE UPDATE ON ai_knowledge_documents
   FOR EACH ROW
-  EXECUTE FUNCTION public.update_ai_knowledge_documents_updated_at();
+  EXECUTE FUNCTION crm.update_ai_knowledge_documents_updated_at();
 
 -- ============================================================
 -- Chunks — retrieval units. `account_id` is denormalized off the
@@ -152,7 +155,7 @@ CREATE POLICY ai_knowledge_chunks_delete ON ai_knowledge_chunks FOR DELETE
 -- Lexical: full-text rank. `plainto_tsquery` turns a raw customer
 -- message into a query safely (no operator injection). Uses the same
 -- language-neutral `'simple'` config as the stored `fts` column.
-CREATE OR REPLACE FUNCTION public.match_ai_knowledge_fts(
+CREATE OR REPLACE FUNCTION crm.match_ai_knowledge_fts(
   p_account_id  uuid,
   p_query       text,
   p_match_count integer
@@ -166,7 +169,7 @@ RETURNS TABLE (id uuid, content text, rank real) AS $$
     AND c.fts @@ plainto_tsquery('simple', p_query)
   ORDER BY rank DESC
   LIMIT GREATEST(p_match_count, 0);
-$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
 -- Semantic: cosine distance against the query embedding. Only rows
 -- that actually have an embedding participate.
@@ -176,7 +179,7 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 -- plain string, so there's no ambiguity in how PostgREST binds a JSON
 -- value to a `vector` parameter. Casting a literal to a constant vector
 -- still lets the HNSW index serve the `<=>` order-by.
-CREATE OR REPLACE FUNCTION public.match_ai_knowledge_semantic(
+CREATE OR REPLACE FUNCTION crm.match_ai_knowledge_semantic(
   p_account_id      uuid,
   p_query_embedding text,
   p_match_count     integer
@@ -190,7 +193,7 @@ RETURNS TABLE (id uuid, content text, distance real) AS $$
     AND c.embedding IS NOT NULL
   ORDER BY c.embedding <=> p_query_embedding::vector(1536)
   LIMIT GREATEST(p_match_count, 0);
-$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
 -- Lock down EXECUTE (mirrors migrations 018 / 025). These are
 -- SECURITY DEFINER and would otherwise default to PUBLIC — i.e. the
@@ -198,7 +201,7 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 -- the passed account_id, would let an unauthenticated caller read any
 -- account's knowledge base. The draft path calls them as `authenticated`
 -- and the auto-reply bot as `service_role`.
-REVOKE ALL ON FUNCTION public.match_ai_knowledge_fts(uuid, text, integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.match_ai_knowledge_fts(uuid, text, integer) TO authenticated, service_role;
-REVOKE ALL ON FUNCTION public.match_ai_knowledge_semantic(uuid, text, integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.match_ai_knowledge_semantic(uuid, text, integer) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION crm.match_ai_knowledge_fts(uuid, text, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.match_ai_knowledge_fts(uuid, text, integer) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION crm.match_ai_knowledge_semantic(uuid, text, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.match_ai_knowledge_semantic(uuid, text, integer) TO authenticated, service_role;

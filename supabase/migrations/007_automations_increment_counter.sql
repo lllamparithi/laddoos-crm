@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 007_automations_increment_counter.sql
 --
@@ -17,7 +20,7 @@ CREATE OR REPLACE FUNCTION increment_automation_execution_count(p_automation_id 
 RETURNS VOID
 LANGUAGE sql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
   UPDATE automations
   SET

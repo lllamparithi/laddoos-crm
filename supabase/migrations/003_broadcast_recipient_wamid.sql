@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- Broadcast recipient correlation + aggregate counts
 --
@@ -38,7 +41,7 @@ CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_broadcast_status
 -- ============================================================
 -- Aggregate trigger
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.recompute_broadcast_counts(bid UUID)
+CREATE OR REPLACE FUNCTION crm.recompute_broadcast_counts(bid UUID)
 RETURNS VOID AS $$
 BEGIN
   UPDATE broadcasts b SET
@@ -60,25 +63,25 @@ BEGIN
   ) agg
   WHERE b.id = bid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
-CREATE OR REPLACE FUNCTION public.broadcast_recipient_aggregate_trigger()
+CREATE OR REPLACE FUNCTION crm.broadcast_recipient_aggregate_trigger()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'DELETE' THEN
-    PERFORM public.recompute_broadcast_counts(OLD.broadcast_id);
+    PERFORM crm.recompute_broadcast_counts(OLD.broadcast_id);
     RETURN OLD;
   END IF;
 
   -- INSERT or UPDATE — only recompute when status changed (or on fresh insert)
   IF TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status THEN
-    PERFORM public.recompute_broadcast_counts(NEW.broadcast_id);
+    PERFORM crm.recompute_broadcast_counts(NEW.broadcast_id);
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
 DROP TRIGGER IF EXISTS broadcast_recipients_aggregate ON broadcast_recipients;
 CREATE TRIGGER broadcast_recipients_aggregate
 AFTER INSERT OR UPDATE OR DELETE ON broadcast_recipients
-FOR EACH ROW EXECUTE FUNCTION public.broadcast_recipient_aggregate_trigger();
+FOR EACH ROW EXECUTE FUNCTION crm.broadcast_recipient_aggregate_trigger();

@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 018_account_member_rpcs.sql — RPCs for member management
 --
@@ -34,13 +37,13 @@
 -- account. Cannot promote to / demote from 'owner' (that is the
 -- transfer endpoint). Cannot target self.
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.set_member_role(
+CREATE OR REPLACE FUNCTION crm.set_member_role(
   p_user_id UUID,
   p_new_role account_role_enum
 ) RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_caller_account_id UUID;
@@ -107,9 +110,9 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.set_member_role(UUID, account_role_enum) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.set_member_role(UUID, account_role_enum) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.set_member_role(UUID, account_role_enum) TO authenticated;
+ALTER FUNCTION crm.set_member_role(UUID, account_role_enum) OWNER TO postgres;
+REVOKE ALL ON FUNCTION crm.set_member_role(UUID, account_role_enum) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.set_member_role(UUID, account_role_enum) TO authenticated;
 
 -- ============================================================
 -- remove_account_member(p_user_id)
@@ -124,12 +127,12 @@ GRANT EXECUTE ON FUNCTION public.set_member_role(UUID, account_role_enum) TO aut
 --
 -- Cannot target the owner. Cannot target self.
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.remove_account_member(
+CREATE OR REPLACE FUNCTION crm.remove_account_member(
   p_user_id UUID
 ) RETURNS UUID  -- the new personal account id
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_caller_account_id UUID;
@@ -200,9 +203,9 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.remove_account_member(UUID) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.remove_account_member(UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.remove_account_member(UUID) TO authenticated;
+ALTER FUNCTION crm.remove_account_member(UUID) OWNER TO postgres;
+REVOKE ALL ON FUNCTION crm.remove_account_member(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.remove_account_member(UUID) TO authenticated;
 
 -- ============================================================
 -- transfer_account_ownership(p_new_owner_user_id)
@@ -214,12 +217,12 @@ GRANT EXECUTE ON FUNCTION public.remove_account_member(UUID) TO authenticated;
 --
 -- Both writes happen in the same statement-level transaction.
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.transfer_account_ownership(
+CREATE OR REPLACE FUNCTION crm.transfer_account_ownership(
   p_new_owner_user_id UUID
 ) RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_caller_account_id UUID;
@@ -278,6 +281,6 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.transfer_account_ownership(UUID) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.transfer_account_ownership(UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.transfer_account_ownership(UUID) TO authenticated;
+ALTER FUNCTION crm.transfer_account_ownership(UUID) OWNER TO postgres;
+REVOKE ALL ON FUNCTION crm.transfer_account_ownership(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.transfer_account_ownership(UUID) TO authenticated;

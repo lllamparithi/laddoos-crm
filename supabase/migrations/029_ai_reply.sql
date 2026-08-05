@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 029_ai_reply.sql — AI reply assistant (bring-your-own-key)
 --
@@ -80,7 +83,7 @@ CREATE POLICY ai_configs_delete ON ai_configs FOR DELETE
   USING (is_account_member(account_id, 'admin'));
 
 -- Keep updated_at fresh on every write.
-CREATE OR REPLACE FUNCTION public.update_ai_configs_updated_at()
+CREATE OR REPLACE FUNCTION crm.update_ai_configs_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = now();
@@ -92,7 +95,7 @@ DROP TRIGGER IF EXISTS ai_configs_updated_at ON ai_configs;
 CREATE TRIGGER ai_configs_updated_at
   BEFORE UPDATE ON ai_configs
   FOR EACH ROW
-  EXECUTE FUNCTION public.update_ai_configs_updated_at();
+  EXECUTE FUNCTION crm.update_ai_configs_updated_at();
 
 -- ============================================================
 -- Per-conversation auto-reply control.
@@ -115,7 +118,7 @@ ALTER TABLE conversations
 -- can ever be claimed. Returns true when a slot was claimed (the caller
 -- may send), false when the cap is already reached (skip).
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.claim_ai_reply_slot(
+CREATE OR REPLACE FUNCTION crm.claim_ai_reply_slot(
   conversation_id uuid,
   max_replies integer
 )
@@ -128,7 +131,7 @@ RETURNS boolean AS $$
     RETURNING 1
   )
   SELECT EXISTS (SELECT 1 FROM claimed);
-$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
 -- The auto-reply bot claims slots under the service-role client (the
 -- inbound webhook has no auth.uid()), so it needs EXECUTE. SECURITY
@@ -138,4 +141,4 @@ $$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 -- privilege has been revoked (hardened / self-hosted Supabase), and the
 -- bot silently never replies. Only the service role claims slots, so we
 -- grant to it alone (mirrors 007 / 012). See migration 031 / issue #345.
-GRANT EXECUTE ON FUNCTION public.claim_ai_reply_slot(uuid, integer) TO service_role;
+GRANT EXECUTE ON FUNCTION crm.claim_ai_reply_slot(uuid, integer) TO service_role;

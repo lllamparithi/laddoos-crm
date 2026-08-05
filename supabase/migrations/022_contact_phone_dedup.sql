@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 022_contact_phone_dedup
 --
@@ -35,11 +38,11 @@ ALTER TABLE contacts
 --    SECURITY DEFINER so it can re-point rows across tables
 --    regardless of the caller's RLS; it only ever collapses exact
 --    normalized duplicates within the same account.
-CREATE OR REPLACE FUNCTION public.merge_duplicate_contacts()
+CREATE OR REPLACE FUNCTION crm.merge_duplicate_contacts()
 RETURNS INTEGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_group   RECORD;
@@ -107,11 +110,11 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.merge_duplicate_contacts() OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.merge_duplicate_contacts() FROM PUBLIC;
+ALTER FUNCTION crm.merge_duplicate_contacts() OWNER TO postgres;
+REVOKE ALL ON FUNCTION crm.merge_duplicate_contacts() FROM PUBLIC;
 
 -- Collapse whatever duplicates exist right now.
-SELECT public.merge_duplicate_contacts();
+SELECT crm.merge_duplicate_contacts();
 
 -- 3) Authoritative guarantee. Partial index defends against any
 --    empty normalized value (phone is NOT NULL, but belt-and-braces).

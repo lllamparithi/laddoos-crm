@@ -1,3 +1,8 @@
+-- Phase 1 crm-schema isolation: this project (public schema) is owned by
+-- the Yali brain repo; wacrm owns crm. See docs/PHASE1_SCHEMA_OWNERSHIP.md.
+CREATE SCHEMA IF NOT EXISTS crm;
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- Idempotent migration — safe to run multiple times.
 -- Uses IF NOT EXISTS for tables/indexes and DROP IF EXISTS
@@ -372,17 +377,17 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON broadcasts FOR EACH ROW EXECUTE F
 -- EXCEPTION block ensures signup still succeeds even if profile
 -- insert fails — profile can be created later if needed.
 -- ============================================================
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
+DROP TRIGGER IF EXISTS on_auth_user_created_wacrm ON auth.users;
+DROP FUNCTION IF EXISTS crm.handle_wacrm_user_created();
 
-CREATE OR REPLACE FUNCTION public.handle_new_user()
+CREATE OR REPLACE FUNCTION crm.handle_wacrm_user_created()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 BEGIN
-  INSERT INTO public.profiles (user_id, full_name, email)
+  INSERT INTO crm.profiles (user_id, full_name, email)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
@@ -395,11 +400,11 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-ALTER FUNCTION public.handle_new_user() OWNER TO postgres;
+ALTER FUNCTION crm.handle_wacrm_user_created() OWNER TO postgres;
 
-CREATE TRIGGER on_auth_user_created
+CREATE TRIGGER on_auth_user_created_wacrm
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION crm.handle_wacrm_user_created();
 
 -- ============================================================
 -- ENABLE REALTIME for key tables (idempotent via DO block)
@@ -408,15 +413,15 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'messages'
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'crm' AND tablename = 'messages'
   ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+    ALTER PUBLICATION supabase_realtime ADD TABLE crm.messages;
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'conversations'
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'crm' AND tablename = 'conversations'
   ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
+    ALTER PUBLICATION supabase_realtime ADD TABLE crm.conversations;
   END IF;
 END $$;

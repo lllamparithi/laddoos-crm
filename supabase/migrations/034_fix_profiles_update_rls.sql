@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 034_fix_profiles_update_rls.sql — lock down privilege columns
 --                                    on profiles (GHSA-fg5p-2qc3-jmxr, C1)
@@ -55,10 +58,10 @@
 --   the bottom); this migration was not run against a live database.
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION public.enforce_profile_privilege_columns()
+CREATE OR REPLACE FUNCTION crm.enforce_profile_privilege_columns()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 BEGIN
   IF (NEW.account_role IS DISTINCT FROM OLD.account_role
@@ -73,12 +76,12 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.enforce_profile_privilege_columns() OWNER TO postgres;
+ALTER FUNCTION crm.enforce_profile_privilege_columns() OWNER TO postgres;
 
-DROP TRIGGER IF EXISTS enforce_profile_privilege_columns ON public.profiles;
+DROP TRIGGER IF EXISTS enforce_profile_privilege_columns ON crm.profiles;
 CREATE TRIGGER enforce_profile_privilege_columns
-  BEFORE UPDATE ON public.profiles
-  FOR EACH ROW EXECUTE FUNCTION public.enforce_profile_privilege_columns();
+  BEFORE UPDATE ON crm.profiles
+  FOR EACH ROW EXECUTE FUNCTION crm.enforce_profile_privilege_columns();
 
 -- ============================================================
 -- Manual validation (run against a live instance — no automated

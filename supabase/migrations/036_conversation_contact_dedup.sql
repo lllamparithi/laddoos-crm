@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 036_conversation_contact_dedup
 --
@@ -38,11 +41,11 @@
 --    SECURITY DEFINER so it can re-point rows across tables
 --    regardless of the caller's RLS; it only ever collapses
 --    conversations that share the same (account_id, contact_id).
-CREATE OR REPLACE FUNCTION public.merge_duplicate_conversations()
+CREATE OR REPLACE FUNCTION crm.merge_duplicate_conversations()
 RETURNS INTEGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_group    RECORD;
@@ -112,11 +115,11 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.merge_duplicate_conversations() OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.merge_duplicate_conversations() FROM PUBLIC;
+ALTER FUNCTION crm.merge_duplicate_conversations() OWNER TO postgres;
+REVOKE ALL ON FUNCTION crm.merge_duplicate_conversations() FROM PUBLIC;
 
 -- Collapse whatever duplicates exist right now.
-SELECT public.merge_duplicate_conversations();
+SELECT crm.merge_duplicate_conversations();
 
 -- 2) Authoritative guarantee: one conversation per (account, contact).
 --    Every write path (inbound webhook, public-API resolver) now has a
