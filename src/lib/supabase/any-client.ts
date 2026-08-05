@@ -14,4 +14,16 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // `SupabaseClient` default (implicitly 'public') no longer accepts. This
 // alias is the honest fix — these functions are genuinely schema-agnostic
 // at the type level, not a bypass of a real schema-mismatch bug.
+// This alias is INTENTIONALLY schema-agnostic: the helpers that accept it call
+// .from()/.rpc() on whatever schema the caller's client is already scoped to,
+// so every generic parameter is deliberately unconstrained rather than unknown.
+//
+// It must NOT be used to hide a schema mismatch in domain code. If a call site
+// fails to typecheck because it is pointed at the wrong schema, fix the schema
+// — never widen the parameter to this alias to silence it.
+// See docs/PHASE1_1_GENERATED_TYPES_ADOPTION.md.
+//
+// The disable must stay on the line directly above the declaration; ESLint
+// applies `-next-line` to the immediately following line only.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnySupabaseClient = SupabaseClient<any, any, any, any, any>
