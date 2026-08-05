@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 019_invitation_rpcs.sql — peek + redeem invitation RPCs
 --
@@ -40,13 +43,13 @@
 -- enumeration risk is theoretical; rate-limiting the route on
 -- the IP layer adds belt-and-braces.
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.peek_invitation(
+CREATE OR REPLACE FUNCTION crm.peek_invitation(
   p_token_hash TEXT
 ) RETURNS JSON
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_inv account_invitations%ROWTYPE;
@@ -81,12 +84,12 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.peek_invitation(TEXT) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.peek_invitation(TEXT) FROM PUBLIC;
+ALTER FUNCTION crm.peek_invitation(TEXT) OWNER TO postgres;
+REVOKE ALL ON FUNCTION crm.peek_invitation(TEXT) FROM PUBLIC;
 -- `anon` so the /join/<token> page can call this before the user
 -- signs in; `authenticated` so the same page works when already
 -- signed in (e.g. existing user clicks a forwarded link).
-GRANT EXECUTE ON FUNCTION public.peek_invitation(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION crm.peek_invitation(TEXT) TO anon, authenticated;
 
 -- ============================================================
 -- redeem_invitation(p_token_hash text)
@@ -122,12 +125,12 @@ GRANT EXECUTE ON FUNCTION public.peek_invitation(TEXT) TO anon, authenticated;
 --      delete the caller's profile too, but step 4 already moved
 --      them to the new account, so the cascade is a no-op.
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.redeem_invitation(
+CREATE OR REPLACE FUNCTION crm.redeem_invitation(
   p_token_hash TEXT
 ) RETURNS UUID  -- the joined account_id
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_caller_id UUID := auth.uid();
@@ -232,6 +235,6 @@ BEGIN
 END;
 $$;
 
-ALTER FUNCTION public.redeem_invitation(TEXT) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.redeem_invitation(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.redeem_invitation(TEXT) TO authenticated;
+ALTER FUNCTION crm.redeem_invitation(TEXT) OWNER TO postgres;
+REVOKE ALL ON FUNCTION crm.redeem_invitation(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.redeem_invitation(TEXT) TO authenticated;

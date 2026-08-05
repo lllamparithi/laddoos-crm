@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 import type { ChatMessage } from './types'
 import { aiContextMessageLimit } from './defaults'
 
@@ -17,7 +18,7 @@ interface DbMessage {
  * naturally and the most recent customer message lands last.
  */
 export async function buildConversationContext(
-  db: SupabaseClient,
+  db: AnySupabaseClient,
   conversationId: string,
   limit: number = aiContextMessageLimit(),
 ): Promise<ChatMessage[]> {

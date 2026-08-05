@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
 import { resolveConversationByPhone } from './resolve-conversation';
 import { SendMessageError } from './send-message';
@@ -29,7 +30,7 @@ interface Script {
   insertConversationError?: { code?: string } | null;
 }
 
-function makeDb(script: Script): SupabaseClient {
+function makeDb(script: Script): AnySupabaseClient {
   let table = '';
   let mode: 'select' | 'insert' | 'update' = 'select';
   let likeCalls = 0;

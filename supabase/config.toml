@@ -1,0 +1,47 @@
+# Supabase CLI config for local development.
+#
+# This repo had no config.toml before Phase 1 (confirmed — no local
+# Postgres/CLI stack existed, see docs/PHASE1_MIGRATION_AUDIT.md §13).
+# Added so `crm` is exposed through PostgREST locally the same way it
+# must be exposed on the hosted project (Settings -> API -> Exposed
+# schemas -> add crm, see docs/PHASE1_DEPLOYMENT_RUNBOOK.md).
+#
+# NOT validated against a real `supabase start` in this environment (the
+# Supabase CLI isn't installed here — confirmed via `supabase --version`).
+# Validate this file the first time anyone actually runs the CLI locally.
+
+project_id = "laddoos-crm"
+
+# Ports shifted off the 54321-54323 default range: a pre-existing local
+# Supabase project on this machine ("YALI_OS_3.0") already binds 54322
+# for its own Postgres container (confirmed via `docker ps` during Phase 1
+# validation) — using the defaults here would conflict with it.
+
+[api]
+enabled = true
+port = 55321
+schemas = ["public", "graphql_public", "crm"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 55322
+major_version = 17
+shadow_port = 55320
+
+[studio]
+enabled = true
+port = 55323
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["https://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true

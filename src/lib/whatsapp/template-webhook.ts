@@ -28,6 +28,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 import { normalizeStatus } from './template-status-normalize'
 
 const TEMPLATE_WEBHOOK_FIELDS = new Set([
@@ -78,7 +79,7 @@ export async function handleTemplateWebhookChange(
   // SupabaseClient typed loosely — the webhook route lazy-initialises
   // the admin client and exposes it as `any`. Type as the generic
   // SupabaseClient here so this module is testable in isolation.
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
 ): Promise<void> {
   switch (change.field) {
     case 'message_template_status_update':
@@ -103,7 +104,7 @@ export async function handleTemplateWebhookChange(
 
 async function handleStatusUpdate(
   value: TemplateStatusUpdateValue,
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
 ): Promise<void> {
   const metaTemplateId =
     value.message_template_id !== undefined
@@ -161,7 +162,7 @@ async function handleStatusUpdate(
 
 async function handleQualityUpdate(
   value: TemplateQualityUpdateValue,
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
 ): Promise<void> {
   const metaTemplateId =
     value.message_template_id !== undefined

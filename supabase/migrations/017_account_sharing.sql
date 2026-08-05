@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 017_account_sharing.sql — Multi-user accounts (foundation)
 --
@@ -140,7 +143,7 @@ CREATE OR REPLACE FUNCTION is_account_member(
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
   SELECT EXISTS (
     SELECT 1
@@ -226,13 +229,13 @@ BEGIN
   -- off auth.users instead of profiles, so every authenticated user is
   -- migrated and no domain row can be left without an account.
   -- full_name / email are NOT NULL on profiles, hence the COALESCE.
-  INSERT INTO public.profiles (user_id, full_name, email)
+  INSERT INTO crm.profiles (user_id, full_name, email)
   SELECT u.id,
          COALESCE(u.raw_user_meta_data->>'full_name', ''),
          COALESCE(u.email, '')
   FROM auth.users u
   WHERE NOT EXISTS (
-    SELECT 1 FROM public.profiles p WHERE p.user_id = u.id
+    SELECT 1 FROM crm.profiles p WHERE p.user_id = u.id
   );
 
   -- (1) Create one account per existing profile whose user does not
@@ -365,7 +368,7 @@ BEGIN
   FOR pol IN
     SELECT policyname, tablename
     FROM pg_policies
-    WHERE schemaname = 'public'
+    WHERE schemaname = 'crm'
       AND tablename = ANY (ARRAY[
         'contacts', 'tags', 'custom_fields', 'contact_notes',
         'conversations', 'whatsapp_config', 'message_templates',
@@ -377,7 +380,7 @@ BEGIN
         'accounts', 'account_invitations'
       ])
   LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, pol.tablename);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON crm.%I', pol.policyname, pol.tablename);
   END LOOP;
 END $$;
 
@@ -653,14 +656,14 @@ CREATE POLICY account_invitations_modify ON account_invitations FOR ALL
 -- to the inviter's account and delete the orphan personal account if
 -- it's still empty.
 -- ============================================================
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
+DROP TRIGGER IF EXISTS on_auth_user_created_wacrm ON auth.users;
+DROP FUNCTION IF EXISTS crm.handle_wacrm_user_created();
 
-CREATE OR REPLACE FUNCTION public.handle_new_user()
+CREATE OR REPLACE FUNCTION crm.handle_wacrm_user_created()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_full_name TEXT;
@@ -668,11 +671,11 @@ DECLARE
 BEGIN
   v_full_name := COALESCE(NEW.raw_user_meta_data->>'full_name', '');
 
-  INSERT INTO public.accounts (name, owner_user_id)
+  INSERT INTO crm.accounts (name, owner_user_id)
   VALUES (COALESCE(NULLIF(v_full_name, ''), NEW.email, 'My account'), NEW.id)
   RETURNING id INTO v_account_id;
 
-  INSERT INTO public.profiles (user_id, full_name, email, account_id, account_role)
+  INSERT INTO crm.profiles (user_id, full_name, email, account_id, account_role)
   VALUES (NEW.id, v_full_name, NEW.email, v_account_id, 'owner');
 
   RETURN NEW;
@@ -682,8 +685,8 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-ALTER FUNCTION public.handle_new_user() OWNER TO postgres;
+ALTER FUNCTION crm.handle_wacrm_user_created() OWNER TO postgres;
 
-CREATE TRIGGER on_auth_user_created
+CREATE TRIGGER on_auth_user_created_wacrm
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION crm.handle_wacrm_user_created();

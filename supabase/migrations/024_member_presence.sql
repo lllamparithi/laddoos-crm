@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 024_member_presence.sql — team member presence (online / away)
 --
@@ -53,12 +56,12 @@ CREATE POLICY member_presence_select ON member_presence FOR SELECT
 -- write despite the absence of a client write policy; the account
 -- is resolved from the caller's own profile, so a client can never
 -- spoof which account it appears in.
-CREATE OR REPLACE FUNCTION public.touch_presence(
+CREATE OR REPLACE FUNCTION crm.touch_presence(
   p_status TEXT DEFAULT 'online'
 ) RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
 DECLARE
   v_account_id UUID;
@@ -94,8 +97,8 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'member_presence'
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'crm' AND tablename = 'member_presence'
   ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE member_presence;
+    ALTER PUBLICATION supabase_realtime ADD TABLE crm.member_presence;
   END IF;
 END $$;

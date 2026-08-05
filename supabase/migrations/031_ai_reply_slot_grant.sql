@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 031_ai_reply_slot_grant.sql — fix: AI auto-reply never fires
 --
@@ -24,4 +27,4 @@
 -- Idempotent — GRANT is a no-op when the privilege already exists.
 -- ============================================================
 
-GRANT EXECUTE ON FUNCTION public.claim_ai_reply_slot(uuid, integer) TO service_role;
+GRANT EXECUTE ON FUNCTION crm.claim_ai_reply_slot(uuid, integer) TO service_role;

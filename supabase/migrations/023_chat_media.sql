@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 023_chat_media.sql
 --
@@ -91,7 +94,7 @@ CREATE POLICY "Members can upload chat media"
   WITH CHECK (
     bucket_id = 'chat-media'
     AND EXISTS (
-      SELECT 1 FROM public.profiles p
+      SELECT 1 FROM crm.profiles p
       WHERE p.user_id = auth.uid()
         AND ('account-' || p.account_id::text) = (storage.foldername(name))[1]
     )
@@ -103,7 +106,7 @@ CREATE POLICY "Members can update chat media"
   USING (
     bucket_id = 'chat-media'
     AND EXISTS (
-      SELECT 1 FROM public.profiles p
+      SELECT 1 FROM crm.profiles p
       WHERE p.user_id = auth.uid()
         AND ('account-' || p.account_id::text) = (storage.foldername(name))[1]
     )
@@ -115,7 +118,7 @@ CREATE POLICY "Members can delete chat media"
   USING (
     bucket_id = 'chat-media'
     AND EXISTS (
-      SELECT 1 FROM public.profiles p
+      SELECT 1 FROM crm.profiles p
       WHERE p.user_id = auth.uid()
         AND ('account-' || p.account_id::text) = (storage.foldername(name))[1]
     )

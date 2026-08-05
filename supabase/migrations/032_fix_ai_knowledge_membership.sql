@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 032_fix_ai_knowledge_membership.sql — stop cross-account KB
 --                                        reads (GHSA-fg5p-2qc3-jmxr, H2)
@@ -44,7 +47,7 @@
 
 -- Lexical: full-text rank. Body unchanged from migration 030 —
 -- only SECURITY DEFINER → SECURITY INVOKER differs.
-CREATE OR REPLACE FUNCTION public.match_ai_knowledge_fts(
+CREATE OR REPLACE FUNCTION crm.match_ai_knowledge_fts(
   p_account_id  uuid,
   p_query       text,
   p_match_count integer
@@ -58,11 +61,11 @@ RETURNS TABLE (id uuid, content text, rank real) AS $$
     AND c.fts @@ plainto_tsquery('simple', p_query)
   ORDER BY rank DESC
   LIMIT GREATEST(p_match_count, 0);
-$$ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public;
+$$ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
 -- Semantic: cosine distance. Body unchanged from migration 030 —
 -- only SECURITY DEFINER → SECURITY INVOKER differs.
-CREATE OR REPLACE FUNCTION public.match_ai_knowledge_semantic(
+CREATE OR REPLACE FUNCTION crm.match_ai_knowledge_semantic(
   p_account_id      uuid,
   p_query_embedding text,
   p_match_count     integer
@@ -76,14 +79,14 @@ RETURNS TABLE (id uuid, content text, distance real) AS $$
     AND c.embedding IS NOT NULL
   ORDER BY c.embedding <=> p_query_embedding::vector(1536)
   LIMIT GREATEST(p_match_count, 0);
-$$ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public;
+$$ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
 -- Re-assert the EXECUTE grants (CREATE OR REPLACE preserves them,
 -- but keep them explicit and re-runnable — mirrors migration 030).
-REVOKE ALL ON FUNCTION public.match_ai_knowledge_fts(uuid, text, integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.match_ai_knowledge_fts(uuid, text, integer) TO authenticated, service_role;
-REVOKE ALL ON FUNCTION public.match_ai_knowledge_semantic(uuid, text, integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.match_ai_knowledge_semantic(uuid, text, integer) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION crm.match_ai_knowledge_fts(uuid, text, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.match_ai_knowledge_fts(uuid, text, integer) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION crm.match_ai_knowledge_semantic(uuid, text, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.match_ai_knowledge_semantic(uuid, text, integer) TO authenticated, service_role;
 
 -- ============================================================
 -- Manual validation (run against a live instance — no automated

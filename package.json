@@ -36,7 +36,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen:types:public": "npx supabase gen types typescript --project-id ugjishankutgfegplrgq --schema public > src/lib/supabase/types/public.generated.ts",
+    "gen:types:crm": "npx supabase gen types typescript --local --schema crm > src/lib/supabase/types/crm.generated.ts",
+    "db:test:setup": "node -e \"require('fs').copyFileSync('supabase/test-fixtures/000_public_schema_fixture.sql','supabase/migrations/000_public_schema_fixture.sql')\"",
+    "db:test:teardown": "node -e \"require('fs').rmSync('supabase/migrations/000_public_schema_fixture.sql',{force:true})\"",
+    "db:test:reset": "npm run db:test:setup && npx supabase db reset && npm run db:test:teardown"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 import {
   ForbiddenError,
   UnauthorizedError,
@@ -62,7 +63,7 @@ function buildUpsertRow(
 }
 
 async function upsertTemplateRow(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   row: ReturnType<typeof buildUpsertRow>,
 ) {
   // TODO(account-sharing): conflict target is still scoped to

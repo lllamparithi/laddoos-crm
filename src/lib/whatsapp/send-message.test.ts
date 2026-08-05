@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
 import {
   sendMessageToConversation,
@@ -9,7 +10,7 @@ import {
 
 // A db that explodes if touched — these tests cover the param
 // validation that MUST short-circuit before any query runs.
-function noDb(): SupabaseClient {
+function noDb(): AnySupabaseClient {
   return {
     from() {
       throw new Error('db should not be queried for invalid params');

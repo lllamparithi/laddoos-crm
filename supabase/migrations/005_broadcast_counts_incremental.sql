@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- Incremental broadcast aggregate trigger.
 --
@@ -33,7 +36,7 @@
 -- ============================================================
 
 -- Delta a single column by +1 / -1.
-CREATE OR REPLACE FUNCTION public._bcast_bump(bid UUID, col TEXT, delta INT)
+CREATE OR REPLACE FUNCTION crm._bcast_bump(bid UUID, col TEXT, delta INT)
 RETURNS VOID AS $$
 BEGIN
   EXECUTE format(
@@ -41,10 +44,10 @@ BEGIN
     col, col
   ) USING delta, bid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
 -- Columns this recipient's status contributes to.
-CREATE OR REPLACE FUNCTION public._bcast_cols_for_status(s TEXT)
+CREATE OR REPLACE FUNCTION crm._bcast_cols_for_status(s TEXT)
 RETURNS TEXT[] AS $$
 BEGIN
   -- 'pending' contributes to nothing.
@@ -59,7 +62,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Replace the trigger body with the incremental version.
-CREATE OR REPLACE FUNCTION public.broadcast_recipient_aggregate_trigger()
+CREATE OR REPLACE FUNCTION crm.broadcast_recipient_aggregate_trigger()
 RETURNS TRIGGER AS $$
 DECLARE
   old_cols TEXT[];
@@ -96,7 +99,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;
 
 -- Trigger itself remains the same (INSERT/UPDATE/DELETE) — just its
 -- body has been replaced.
@@ -104,7 +107,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 -- Safety net — rebuild counts from scratch. Retained as-is so ops can
 -- run it on demand if something ever drifts. Matches the incremental
 -- trigger's semantic model exactly.
-CREATE OR REPLACE FUNCTION public.recompute_broadcast_counts(bid UUID)
+CREATE OR REPLACE FUNCTION crm.recompute_broadcast_counts(bid UUID)
 RETURNS VOID AS $$
 BEGIN
   UPDATE broadcasts b SET
@@ -126,4 +129,4 @@ BEGIN
   ) agg
   WHERE b.id = bid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;

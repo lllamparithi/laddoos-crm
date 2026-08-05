@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 028_webhook_endpoints.sql — Outbound event webhooks (public API)
 --
@@ -88,7 +91,7 @@ CREATE POLICY webhook_endpoints_delete ON webhook_endpoints FOR DELETE
 -- Only ever disables (never re-enables) — re-enabling is an explicit
 -- PATCH by an admin, which resets the counter.
 -- ============================================================
-CREATE OR REPLACE FUNCTION public.record_webhook_failure(
+CREATE OR REPLACE FUNCTION crm.record_webhook_failure(
   endpoint_id uuid,
   max_failures int
 )
@@ -100,4 +103,4 @@ RETURNS void AS $$
         ELSE is_active
       END
   WHERE id = endpoint_id;
-$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, crm, extensions, public, pg_temp;

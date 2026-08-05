@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 012_flows_increment_counter.sql
 --
@@ -18,7 +21,7 @@ CREATE OR REPLACE FUNCTION increment_flow_execution_count(p_flow_id UUID)
 RETURNS VOID
 LANGUAGE sql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
   UPDATE flows
   SET

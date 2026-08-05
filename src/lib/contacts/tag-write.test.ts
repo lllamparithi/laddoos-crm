@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
 import { addContactTagIfAbsent } from './tag-write';
 
@@ -10,7 +11,7 @@ interface FakeOptions {
   insertError?: { code?: string; message: string } | null;
 }
 
-function fakeDb(options: FakeOptions = {}): SupabaseClient {
+function fakeDb(options: FakeOptions = {}): AnySupabaseClient {
   const contact =
     options.contact === undefined ? { id: 'contact-1' } : options.contact;
   const tag = options.tag === undefined ? { id: 'tag-1' } : options.tag;

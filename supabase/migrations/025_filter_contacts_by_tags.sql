@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 025_filter_contacts_by_tags.sql — server-side tag filter
 --
@@ -30,7 +33,7 @@
 -- Idempotent — safe to run multiple times.
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION public.filter_contacts_by_tags(
+CREATE OR REPLACE FUNCTION crm.filter_contacts_by_tags(
   p_tag_ids UUID[],
   p_search TEXT DEFAULT NULL,
   p_limit INT DEFAULT 25,
@@ -40,7 +43,7 @@ RETURNS TABLE (contact contacts, total_count BIGINT)
 LANGUAGE sql
 STABLE
 SECURITY INVOKER
-SET search_path = public
+SET search_path = pg_catalog, crm, extensions, public, pg_temp
 AS $$
   WITH matched AS (
     -- Distinct contacts having ANY of the selected tags (OR),
@@ -70,6 +73,6 @@ AS $$
   ORDER BY c.created_at DESC, c.id;
 $$;
 
-ALTER FUNCTION public.filter_contacts_by_tags(UUID[], TEXT, INT, INT) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.filter_contacts_by_tags(UUID[], TEXT, INT, INT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.filter_contacts_by_tags(UUID[], TEXT, INT, INT) TO authenticated;
+ALTER FUNCTION crm.filter_contacts_by_tags(UUID[], TEXT, INT, INT) OWNER TO postgres;
+REVOKE ALL ON FUNCTION crm.filter_contacts_by_tags(UUID[], TEXT, INT, INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION crm.filter_contacts_by_tags(UUID[], TEXT, INT, INT) TO authenticated;

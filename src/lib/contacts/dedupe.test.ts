@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 import {
   dedupeByPhone,
   findExistingContact,
@@ -69,7 +70,7 @@ describe("dedupeByPhone", () => {
 describe("findExistingContact", () => {
   // Minimal SupabaseClient stub: resolves the .from().select().eq().like()
   // chain to a fixed candidate set.
-  function stubDb(rows: Array<{ id: string; phone: string }>): SupabaseClient {
+  function stubDb(rows: Array<{ id: string; phone: string }>): AnySupabaseClient {
     const builder = {
       select: () => builder,
       eq: () => builder,

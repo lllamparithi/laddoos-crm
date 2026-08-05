@@ -1,3 +1,6 @@
+-- Phase 1 crm-schema isolation: see docs/PHASE1_SCHEMA_OWNERSHIP.md.
+SET search_path = crm, public, extensions;
+
 -- ============================================================
 -- 020_account_sharing_followups.sql — review-board fixes for
 -- the multi-user accounts series (#167-#177).
@@ -78,7 +81,7 @@ CREATE POLICY "Members can upload flow media"
       -- two accounts that happen to be in the same Supabase project
       -- can never accidentally collide.
       EXISTS (
-        SELECT 1 FROM public.profiles p
+        SELECT 1 FROM crm.profiles p
         WHERE p.user_id = auth.uid()
           AND ('account-' || p.account_id::text) = (storage.foldername(name))[1]
       )
@@ -95,7 +98,7 @@ CREATE POLICY "Members can update flow media"
     bucket_id = 'flow-media'
     AND (
       EXISTS (
-        SELECT 1 FROM public.profiles p
+        SELECT 1 FROM crm.profiles p
         WHERE p.user_id = auth.uid()
           AND ('account-' || p.account_id::text) = (storage.foldername(name))[1]
       )
@@ -110,7 +113,7 @@ CREATE POLICY "Members can delete flow media"
     bucket_id = 'flow-media'
     AND (
       EXISTS (
-        SELECT 1 FROM public.profiles p
+        SELECT 1 FROM crm.profiles p
         WHERE p.user_id = auth.uid()
           AND ('account-' || p.account_id::text) = (storage.foldername(name))[1]
       )
