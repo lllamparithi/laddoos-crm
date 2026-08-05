@@ -27,6 +27,7 @@
 
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
 import { createClient } from "@/lib/supabase/server";
 import { hasMinRole, isAccountRole, type AccountRole } from "./roles";
@@ -80,7 +81,7 @@ export function toErrorResponse(err: unknown): NextResponse {
 
 export interface AccountContext {
   /** Supabase SSR client, RLS scoped to the calling user. */
-  supabase: SupabaseClient;
+  supabase: AnySupabaseClient;
   /** `auth.uid()` for the caller. Always defined when this resolves. */
   userId: string;
   /** Caller's account_id from their profile row. */

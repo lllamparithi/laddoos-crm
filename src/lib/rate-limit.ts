@@ -167,6 +167,18 @@ export const RATE_LIMITS = {
    *  capping a stampede; excess inbounds simply don't get an auto-reply
    *  (they still land in the inbox for a human). */
   aiAutoReplyAccount: { limit: 30, windowMs: 60_000 },
+  /** Phase 2A continuation-token resolve, public/per-IP. Same reasoning
+   *  as `invitationPeek`: a real visitor's page load might retry a
+   *  couple of times under flaky connectivity; this isn't something one
+   *  visitor legitimately calls at high frequency, so 30/min pinches
+   *  token enumeration without affecting real traffic. */
+  continuationTokenResolve: { limit: 30, windowMs: 60_000 },
+  /** Phase 2A web event ingest, public/per-IP. Higher than
+   *  `invitationPeek` because one real browsing session legitimately
+   *  fires several events per minute (page views, chat turns) — sized
+   *  like `publicApi` (~2 req/s sustained) rather than the tighter
+   *  single-action buckets above. */
+  webEventIngest: { limit: 120, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

@@ -20,6 +20,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
 import {
   sendTextMessage,
@@ -181,7 +182,7 @@ export function validateSendMessageParams(params: {
 }
 
 export async function sendMessageToConversation(
-  db: SupabaseClient,
+  db: AnySupabaseClient,
   accountId: string,
   params: SendMessageParams
 ): Promise<SendMessageResult> {

@@ -19,6 +19,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
@@ -39,7 +40,7 @@ export interface ResolvedConversation {
  * WhatsApp config, or a DB failure.
  */
 export async function resolveConversationByPhone(
-  db: SupabaseClient,
+  db: AnySupabaseClient,
   accountId: string,
   phone: string,
   name?: string | null
@@ -159,7 +160,7 @@ export async function resolveConversationByPhone(
  * re-resolve the winning row rather than failing the send.
  */
 async function findOrCreateConversationRow(
-  db: SupabaseClient,
+  db: AnySupabaseClient,
   accountId: string,
   contactId: string,
   ownerUserId: string

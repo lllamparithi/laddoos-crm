@@ -34,7 +34,7 @@ export function useUnreadNotifications(): number {
       .channel("notifications-unread-count")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
+        { event: "*", schema: "crm", table: "notifications" },
         (payload) => {
           if (payload.eventType === "INSERT") {
             const row = payload.new as Notification;

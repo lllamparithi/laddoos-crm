@@ -1,6 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// No Database generic — middleware only calls supabase.auth.getUser(),
+// never .from(), so schema typing doesn't matter here. See
+// src/lib/supabase/database.types.ts for why `crm` is untyped for now.
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -8,6 +11,7 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      db: { schema: 'crm' },
       cookies: {
         getAll() {
           return request.cookies.getAll()

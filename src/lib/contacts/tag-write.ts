@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
 export class ContactTagWriteError extends Error {
   readonly status: number;
@@ -17,7 +18,7 @@ interface ContactTagWriteInput {
 }
 
 async function assertContactAndTagOwnership(
-  db: SupabaseClient,
+  db: AnySupabaseClient,
   input: ContactTagWriteInput
 ): Promise<void> {
   const [contactResult, tagResult] = await Promise.all([
@@ -52,7 +53,7 @@ async function assertContactAndTagOwnership(
  * duplicate insert is a no-op and must not emit a tag_added event.
  */
 export async function addContactTagIfAbsent(
-  db: SupabaseClient,
+  db: AnySupabaseClient,
   input: ContactTagWriteInput
 ): Promise<boolean> {
   await assertContactAndTagOwnership(db, input);
@@ -73,7 +74,7 @@ export async function addContactTagIfAbsent(
 }
 
 export async function removeContactTag(
-  db: SupabaseClient,
+  db: AnySupabaseClient,
   input: ContactTagWriteInput
 ): Promise<void> {
   await assertContactAndTagOwnership(db, input);

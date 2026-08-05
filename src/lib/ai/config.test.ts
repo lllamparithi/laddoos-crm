@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
 // decrypt is identity in tests so we don't depend on real ciphertext.
 vi.mock('@/lib/whatsapp/encryption', () => ({
@@ -8,7 +9,7 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
 
 import { loadAiConfig } from './config'
 
-function dbReturning(row: Record<string, unknown> | null): SupabaseClient {
+function dbReturning(row: Record<string, unknown> | null): AnySupabaseClient {
   const chain = {
     from: () => chain,
     select: () => chain,
