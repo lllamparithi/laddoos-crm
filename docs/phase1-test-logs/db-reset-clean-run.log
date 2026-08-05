@@ -1,0 +1,196 @@
+
+> wacrm@0.8.0 db:test:reset
+> npm run db:test:setup && npx supabase db reset && npm run db:test:teardown
+
+
+> wacrm@0.8.0 db:test:setup
+> node -e "require('fs').copyFileSync('supabase/test-fixtures/000_public_schema_fixture.sql','supabase/migrations/000_public_schema_fixture.sql')"
+
+Resetting local database...
+Recreating database...
+Initialising schema...
+Seeding globals from roles.sql...
+Applying migration 000_public_schema_fixture.sql...
+NOTICE (00000): Fixture contract OK — all public-schema dependencies present.
+Applying migration 001_initial_schema.sql...
+NOTICE (42710): extension "uuid-ossp" already exists, skipping
+NOTICE (00000): policy "Users can view own profile" for relation "profiles" does not exist, skipping
+NOTICE (00000): policy "Users can update own profile" for relation "profiles" does not exist, skipping
+NOTICE (00000): policy "Users can insert own profile" for relation "profiles" does not exist, skipping
+NOTICE (00000): policy "Users can manage own contacts" for relation "contacts" does not exist, skipping
+NOTICE (00000): policy "Users can manage own tags" for relation "tags" does not exist, skipping
+NOTICE (00000): policy "Users can manage contact tags" for relation "contact_tags" does not exist, skipping
+NOTICE (00000): policy "Users can manage own custom fields" for relation "custom_fields" does not exist, skipping
+NOTICE (00000): policy "Users can manage custom values" for relation "contact_custom_values" does not exist, skipping
+NOTICE (00000): policy "Users can manage own notes" for relation "contact_notes" does not exist, skipping
+NOTICE (00000): policy "Users can manage own conversations" for relation "conversations" does not exist, skipping
+NOTICE (00000): policy "Users can view own messages" for relation "messages" does not exist, skipping
+NOTICE (00000): policy "Service role can insert messages" for relation "messages" does not exist, skipping
+NOTICE (00000): policy "Users can manage own config" for relation "whatsapp_config" does not exist, skipping
+NOTICE (00000): policy "Users can manage own templates" for relation "message_templates" does not exist, skipping
+NOTICE (00000): policy "Users can manage own pipelines" for relation "pipelines" does not exist, skipping
+NOTICE (00000): policy "Users can manage pipeline stages" for relation "pipeline_stages" does not exist, skipping
+NOTICE (00000): policy "Users can manage own deals" for relation "deals" does not exist, skipping
+NOTICE (00000): policy "Users can manage own broadcasts" for relation "broadcasts" does not exist, skipping
+NOTICE (00000): policy "Users can manage broadcast recipients" for relation "broadcast_recipients" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "profiles" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "contacts" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "conversations" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "whatsapp_config" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "message_templates" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "deals" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "broadcasts" does not exist, skipping
+NOTICE (00000): trigger "on_auth_user_created_wacrm" for relation "auth.users" does not exist, skipping
+NOTICE (00000): function crm.handle_wacrm_user_created() does not exist, skipping
+Applying migration 002_pipelines_enhancements.sql...
+Applying migration 003_broadcast_recipient_wamid.sql...
+NOTICE (00000): trigger "broadcast_recipients_aggregate" for relation "broadcast_recipients" does not exist, skipping
+Applying migration 004_contact_delete_set_null.sql...
+Applying migration 005_broadcast_counts_incremental.sql...
+Applying migration 006_automations.sql...
+NOTICE (00000): policy "Users can manage own automations" for relation "automations" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "automations" does not exist, skipping
+NOTICE (00000): policy "Users can manage steps of own automations" for relation "automation_steps" does not exist, skipping
+NOTICE (00000): policy "Users can view own automation logs" for relation "automation_logs" does not exist, skipping
+Applying migration 007_automations_increment_counter.sql...
+Applying migration 008_profile_avatars_storage.sql...
+NOTICE (00000): policy "Avatars are publicly readable" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Users can upload their own avatar" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Users can update their own avatar" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Users can delete their own avatar" for relation "storage.objects" does not exist, skipping
+Applying migration 009_message_actions.sql...
+NOTICE (00000): policy "Users see reactions on their conversations" for relation "message_reactions" does not exist, skipping
+NOTICE (00000): policy "Users insert reactions on their conversations" for relation "message_reactions" does not exist, skipping
+NOTICE (00000): policy "Users delete their own agent reactions" for relation "message_reactions" does not exist, skipping
+NOTICE (00000): policy "Users update their own agent reactions" for relation "message_reactions" does not exist, skipping
+Applying migration 010_flows.sql...
+NOTICE (00000): policy "Users can manage own flows" for relation "flows" does not exist, skipping
+NOTICE (00000): policy "Users manage nodes on their flows" for relation "flow_nodes" does not exist, skipping
+NOTICE (00000): policy "Users see own flow runs" for relation "flow_runs" does not exist, skipping
+NOTICE (00000): policy "Users see events on their runs" for relation "flow_run_events" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "flows" does not exist, skipping
+Applying migration 011_profile_beta_features.sql...
+Applying migration 012_flows_increment_counter.sql...
+Applying migration 013_whatsapp_config_phone_number_id_unique.sql...
+Applying migration 014_message_templates_meta_integration.sql...
+Applying migration 015_whatsapp_config_registration.sql...
+Applying migration 016_flow_media.sql...
+NOTICE (00000): policy "Flow media is publicly readable" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Users can upload their own flow media" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Users can update their own flow media" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Users can delete their own flow media" for relation "storage.objects" does not exist, skipping
+Applying migration 017_account_sharing.sql...
+NOTICE (00000): trigger "set_updated_at" for relation "accounts" does not exist, skipping
+NOTICE (00000): policy "Users can manage own contacts" for relation "contacts" does not exist, skipping
+NOTICE (00000): policy "Users can manage own tags" for relation "tags" does not exist, skipping
+NOTICE (00000): policy "Users can manage own custom fields" for relation "custom_fields" does not exist, skipping
+NOTICE (00000): policy "Users can manage own notes" for relation "contact_notes" does not exist, skipping
+NOTICE (00000): policy "Users can manage own conversations" for relation "conversations" does not exist, skipping
+NOTICE (00000): policy "Users can manage own config" for relation "whatsapp_config" does not exist, skipping
+NOTICE (00000): policy "Users can manage own templates" for relation "message_templates" does not exist, skipping
+NOTICE (00000): policy "Users can manage own pipelines" for relation "pipelines" does not exist, skipping
+NOTICE (00000): policy "Users can manage own deals" for relation "deals" does not exist, skipping
+NOTICE (00000): policy "Users can manage own broadcasts" for relation "broadcasts" does not exist, skipping
+NOTICE (00000): policy "Users can manage own automations" for relation "automations" does not exist, skipping
+NOTICE (00000): policy "Users can view own automation logs" for relation "automation_logs" does not exist, skipping
+NOTICE (00000): policy "Users can manage own flows" for relation "flows" does not exist, skipping
+NOTICE (00000): policy "Users see own flow runs" for relation "flow_runs" does not exist, skipping
+NOTICE (00000): policy "Users can manage contact tags" for relation "contact_tags" does not exist, skipping
+NOTICE (00000): policy "Users can manage custom values" for relation "contact_custom_values" does not exist, skipping
+NOTICE (00000): policy "Users can view own messages" for relation "messages" does not exist, skipping
+NOTICE (00000): policy "Service role can insert messages" for relation "messages" does not exist, skipping
+NOTICE (00000): policy "Users can manage pipeline stages" for relation "pipeline_stages" does not exist, skipping
+NOTICE (00000): policy "Users can manage broadcast recipients" for relation "broadcast_recipients" does not exist, skipping
+NOTICE (00000): policy "Users can manage steps of own automations" for relation "automation_steps" does not exist, skipping
+NOTICE (00000): policy "Users manage nodes on their flows" for relation "flow_nodes" does not exist, skipping
+NOTICE (00000): policy "Users see events on their runs" for relation "flow_run_events" does not exist, skipping
+NOTICE (00000): policy "Users see reactions on their conversations" for relation "message_reactions" does not exist, skipping
+NOTICE (00000): policy "Users insert reactions on their conversations" for relation "message_reactions" does not exist, skipping
+NOTICE (00000): policy "Users delete their own agent reactions" for relation "message_reactions" does not exist, skipping
+NOTICE (00000): policy "Users update their own agent reactions" for relation "message_reactions" does not exist, skipping
+NOTICE (00000): policy "Users can view own profile" for relation "profiles" does not exist, skipping
+NOTICE (00000): policy "Users can update own profile" for relation "profiles" does not exist, skipping
+NOTICE (00000): policy "Users can insert own profile" for relation "profiles" does not exist, skipping
+NOTICE (00000): policy "accounts_select" for relation "accounts" does not exist, skipping
+NOTICE (00000): policy "accounts_update" for relation "accounts" does not exist, skipping
+NOTICE (00000): policy "account_invitations_select" for relation "account_invitations" does not exist, skipping
+NOTICE (00000): policy "account_invitations_modify" for relation "account_invitations" does not exist, skipping
+Applying migration 018_account_member_rpcs.sql...
+Applying migration 019_invitation_rpcs.sql...
+Applying migration 020_account_sharing_followups.sql...
+NOTICE (00000): policy "Members can upload flow media" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Members can update flow media" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Members can delete flow media" for relation "storage.objects" does not exist, skipping
+Applying migration 021_account_default_currency.sql...
+NOTICE (00000): constraint "accounts_default_currency_format" of relation "accounts" does not exist, skipping
+Applying migration 022_contact_phone_dedup.sql...
+Applying migration 023_chat_media.sql...
+NOTICE (00000): policy "Chat media is publicly readable" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Members can upload chat media" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Members can update chat media" for relation "storage.objects" does not exist, skipping
+NOTICE (00000): policy "Members can delete chat media" for relation "storage.objects" does not exist, skipping
+Applying migration 024_member_presence.sql...
+NOTICE (00000): policy "member_presence_select" for relation "member_presence" does not exist, skipping
+Applying migration 025_filter_contacts_by_tags.sql...
+Applying migration 026_api_keys.sql...
+NOTICE (00000): policy "api_keys_select" for relation "api_keys" does not exist, skipping
+NOTICE (00000): policy "api_keys_insert" for relation "api_keys" does not exist, skipping
+NOTICE (00000): policy "api_keys_update" for relation "api_keys" does not exist, skipping
+NOTICE (00000): policy "api_keys_delete" for relation "api_keys" does not exist, skipping
+Applying migration 027_notifications.sql...
+NOTICE (00000): policy "notifications_select" for relation "notifications" does not exist, skipping
+NOTICE (00000): policy "notifications_update" for relation "notifications" does not exist, skipping
+NOTICE (00000): trigger "on_conversation_assigned" for relation "conversations" does not exist, skipping
+Applying migration 028_webhook_endpoints.sql...
+NOTICE (00000): policy "webhook_endpoints_select" for relation "webhook_endpoints" does not exist, skipping
+NOTICE (00000): policy "webhook_endpoints_insert" for relation "webhook_endpoints" does not exist, skipping
+NOTICE (00000): policy "webhook_endpoints_update" for relation "webhook_endpoints" does not exist, skipping
+NOTICE (00000): policy "webhook_endpoints_delete" for relation "webhook_endpoints" does not exist, skipping
+Applying migration 029_ai_reply.sql...
+NOTICE (00000): policy "ai_configs_select" for relation "ai_configs" does not exist, skipping
+NOTICE (00000): policy "ai_configs_insert" for relation "ai_configs" does not exist, skipping
+NOTICE (00000): policy "ai_configs_update" for relation "ai_configs" does not exist, skipping
+NOTICE (00000): policy "ai_configs_delete" for relation "ai_configs" does not exist, skipping
+NOTICE (00000): trigger "ai_configs_updated_at" for relation "ai_configs" does not exist, skipping
+Applying migration 030_ai_knowledge.sql...
+NOTICE (00000): policy "ai_knowledge_documents_select" for relation "ai_knowledge_documents" does not exist, skipping
+NOTICE (00000): policy "ai_knowledge_documents_insert" for relation "ai_knowledge_documents" does not exist, skipping
+NOTICE (00000): policy "ai_knowledge_documents_update" for relation "ai_knowledge_documents" does not exist, skipping
+NOTICE (00000): policy "ai_knowledge_documents_delete" for relation "ai_knowledge_documents" does not exist, skipping
+NOTICE (00000): trigger "ai_knowledge_documents_updated_at" for relation "ai_knowledge_documents" does not exist, skipping
+NOTICE (00000): policy "ai_knowledge_chunks_select" for relation "ai_knowledge_chunks" does not exist, skipping
+NOTICE (00000): policy "ai_knowledge_chunks_insert" for relation "ai_knowledge_chunks" does not exist, skipping
+NOTICE (00000): policy "ai_knowledge_chunks_update" for relation "ai_knowledge_chunks" does not exist, skipping
+NOTICE (00000): policy "ai_knowledge_chunks_delete" for relation "ai_knowledge_chunks" does not exist, skipping
+Applying migration 031_ai_reply_slot_grant.sql...
+Applying migration 032_fix_ai_knowledge_membership.sql...
+Applying migration 033_ai_reply_polish.sql...
+NOTICE (00000): policy "ai_usage_log_select" for relation "ai_usage_log" does not exist, skipping
+Applying migration 034_fix_profiles_update_rls.sql...
+NOTICE (00000): trigger "enforce_profile_privilege_columns" for relation "crm.profiles" does not exist, skipping
+Applying migration 035_interactive_messages.sql...
+NOTICE (00000): policy "quick_replies_select" for relation "quick_replies" does not exist, skipping
+NOTICE (00000): policy "quick_replies_insert" for relation "quick_replies" does not exist, skipping
+NOTICE (00000): policy "quick_replies_update" for relation "quick_replies" does not exist, skipping
+NOTICE (00000): policy "quick_replies_delete" for relation "quick_replies" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "quick_replies" does not exist, skipping
+Applying migration 036_conversation_contact_dedup.sql...
+Applying migration 037_workspace_brand_map.sql...
+NOTICE (00000): policy "workspace_brand_map_account_read" for relation "workspace_brand_map" does not exist, skipping
+NOTICE (00000): policy "workspace_brand_map_account_write" for relation "workspace_brand_map" does not exist, skipping
+NOTICE (00000): trigger "set_updated_at" for relation "workspace_brand_map" does not exist, skipping
+Applying migration 038_phone_normalization.sql...
+Applying migration 039_identity_linking.sql...
+NOTICE (00000): policy "identity_link_conflicts_account_rw" for relation "identity_link_conflicts" does not exist, skipping
+NOTICE (00000): trigger "trg_contacts_link_customer" for relation "contacts" does not exist, skipping
+Applying migration 040_phone_linkability_guard.sql...
+Applying migration 041_crm_schema_grants.sql...
+Applying migration 042_realtime_replica_identity.sql...
+WARN: no files matched pattern: supabase/seed.sql
+Restarting containers...
+Finished [36msupabase db reset[39m on branch [36mphase1/fresh-migration-validation[39m.
+{"target":"local","version":"","message":"Reset local database."}
+
+> wacrm@0.8.0 db:test:teardown
+> node -e "require('fs').rmSync('supabase/migrations/000_public_schema_fixture.sql',{force:true})"
+
