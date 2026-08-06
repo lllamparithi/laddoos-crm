@@ -114,9 +114,12 @@ html[data-mode="dark"] {
   --sidebar-accent: oklch(0.22 0.01 260);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.28 0.01 260);
-  /* Active sidebar nav label — see the light-mode block for the why.
-     Lightened against the dark row: measured 6.40:1. */
-  --nav-active-foreground: color-mix(in oklab, var(--primary) 70%, white);
+  /* Foreground readable on a `bg-primary/10` tint — see the light-mode
+     block for the why. Lightened against the dark tint: 6.40:1. */
+  --on-primary-soft: color-mix(in oklab, var(--primary) 70%, white);
+  --nav-active-foreground: var(--on-primary-soft);
+  /* Owner role chip. See the light-mode block. Dark tint: 9.67:1. */
+  --role-owner-foreground: color-mix(in oklab, var(--color-amber-500) 70%, white);
 }
 
 html[data-mode="light"] {
@@ -146,24 +149,43 @@ html[data-mode="light"] {
   --sidebar-accent: oklch(0.96 0.004 260);
   --sidebar-accent-foreground: oklch(0.25 0.01 260);
   --sidebar-border: oklch(0.922 0.004 260);
-  /* Active sidebar nav label.
-     `--primary` itself is not usable as text on the active row: the row
-     is `bg-primary/10` over the sidebar surface, so the label and its
-     background are the same hue at similar lightness. Measured, that
-     lands at 3.81:1 (dark) / 3.95:1 (light) — under the 4.5:1 WCAG AA
-     floor for normal text.
+  /* Foreground for text sitting on a `bg-primary/10` tint — the active
+     sidebar nav row and the admin role chip both do this.
+     `--primary` itself is not usable there: the tint is the same hue at
+     similar lightness, so text and background collapse together.
+     Measured, that lands at 3.81:1 (dark) / 3.95:1 (light) — under the
+     4.5:1 WCAG AA floor for normal text.
      The correction has to run in OPPOSITE directions per mode — lighter
      against the dark row, darker against the light row — so a single
      static colour cannot fix both. Deriving it from `--primary` with
      color-mix keeps it accent-aware: switch to violet/emerald/amber/rose
      and this tracks automatically instead of pinning a hard-coded blue.
-     The mix ratios are deliberately not pushed further than needed: at
-     55%/78% the label measured 8.11 / 6.78 but washed the accent out to
-     a pale blue. These land at 6.40 (dark) / 6.14 (light) — ~1.6 above
-     the AA floor, so a small future surface tweak can't silently drop
-     them under, while the row still reads as the brand accent.
+     The ratio is set by the WORST accent, not by the default one. Azul
+     is a mid-dark blue and tolerated 82%, but `amber` is a light accent:
+     at 82% it measured 3.59:1 and at 75% still only 4.43:1. 70% is the
+     first value where every theme clears the floor — measured across all
+     five accents, light mode:
+       amber 5.15 · emerald 6.54 · rose 7.03 · azul 8.21 · violet 9.75
+     Dark mode keeps 70% (worst case violet, 5.56).
      Ratios verified by reading painted pixels, not by source values. */
-  --nav-active-foreground: color-mix(in oklab, var(--primary) 82%, black);
+  --on-primary-soft: color-mix(in oklab, var(--primary) 70%, black);
+  /* Kept as an alias so the nav's consuming class needs no edit; the two
+     needs are the same, so they must not drift apart. */
+  --nav-active-foreground: var(--on-primary-soft);
+
+  /* Owner role chip.
+     The chip was a flat `text-amber-300` — fine on the dark tint (11.26)
+     but 1.33:1 on the light one, i.e. effectively invisible. Same
+     opposite-directions problem as above, so it also needs a per-mode
+     value rather than one static colour.
+     Derived from `--color-amber-500` specifically, because the chip's
+     own `border-amber-500/40 bg-amber-500/10` classes guarantee Tailwind
+     emits that variable. Referencing `--color-amber-300`/`-700` would
+     have made this token depend on unrelated files continuing to use
+     those shades — Tailwind v4 tree-shakes the palette, and amber-800/900
+     are already absent for exactly that reason.
+     Measured: 9.67:1 (dark) / 6.69:1 (light). */
+  --role-owner-foreground: color-mix(in oklab, var(--color-amber-500) 60%, black);
 }
 
 /* ---- ACCENT: primary color ---- */
