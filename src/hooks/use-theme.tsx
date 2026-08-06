@@ -16,6 +16,7 @@ import {
   STORAGE_KEY,
   isMode,
   isThemeId,
+  resolveThemeId,
   type Mode,
   type ThemeId,
 } from "@/lib/themes";
@@ -47,7 +48,26 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function readInitialTheme(): ThemeId {
+/**
+ * Write the theme to localStorage, swallowing any failure.
+ *
+ * Storage throws in private-browsing / sandboxed contexts and when the
+ * quota is full. A failed write must never propagate: callers use this
+ * while deciding what to *render*, and an exception escaping here would
+ * discard an already-correct theme and drop the user to the default.
+ * Losing the persisted preference is acceptable; losing the render is
+ * not.
+ */
+function persistTheme(next: ThemeId): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, next);
+  } catch {
+    // Non-fatal — in-memory state still drives the current session.
+  }
+}
+
+/** Exported for tests; not part of the hook's public surface. */
+export function readInitialTheme(): ThemeId {
   if (typeof window === "undefined") return DEFAULT_THEME;
   // Whatever the boot script applied is the truth. Fall back to
   // localStorage / default if for some reason the attribute is missing
@@ -55,8 +75,22 @@ function readInitialTheme(): ThemeId {
   const fromAttr = document.documentElement.dataset.theme;
   if (isThemeId(fromAttr)) return fromAttr;
   try {
+    // resolveThemeId, not isThemeId: on this path the boot script never
+    // ran, so a retired id (`cobalt`) is still sitting in storage and
+    // should map to its replacement rather than fall to the default.
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (isThemeId(stored)) return stored;
+    const resolved = resolveThemeId(stored);
+    if (resolved) {
+      // Mirror the boot script's migration so this path self-heals too:
+      // a retired id is rewritten in place rather than left to linger.
+      // The inequality guard is what keeps this to alias hits only — an
+      // already-current id resolves to itself and is not rewritten, and
+      // an unknown value resolves to null and never reaches here, so it
+      // is never persisted. Persisting unknown values would pin the
+      // user to today's default forever.
+      if (stored !== resolved) persistTheme(resolved);
+      return resolved;
+    }
   } catch {
     // localStorage can throw in private-browsing / sandboxed contexts.
   }
@@ -85,12 +119,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (typeof document !== "undefined") {
       document.documentElement.dataset.theme = next;
     }
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // Same private-browsing edge case as above; the in-memory state
-      // still updates so the current tab works for the session.
-    }
+    persistTheme(next);
   }, []);
 
   const setMode = useCallback((next: Mode) => {

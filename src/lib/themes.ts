@@ -14,16 +14,16 @@
  */
 
 export const THEME_IDS = [
+  "azul",
   "violet",
   "emerald",
-  "cobalt",
   "amber",
   "rose",
 ] as const;
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const DEFAULT_THEME: ThemeId = "violet";
+export const DEFAULT_THEME: ThemeId = "azul";
 
 export const STORAGE_KEY = "wacrm.theme";
 
@@ -68,9 +68,16 @@ export interface ThemeMeta {
 
 export const THEMES: ReadonlyArray<ThemeMeta> = [
   {
+    id: "azul",
+    name: "Azul",
+    tagline: "The default — Azul Elefant brand blue.",
+    // Must mirror --primary in globals.css: paints exactly #1A73E8.
+    swatch: "oklch(0.573 0.195 258)",
+  },
+  {
     id: "violet",
     name: "Violet",
-    tagline: "The default — confident, slightly playful.",
+    tagline: "The upstream default — confident, slightly playful.",
     swatch: "oklch(0.526 0.247 293)",
   },
   {
@@ -78,12 +85,6 @@ export const THEMES: ReadonlyArray<ThemeMeta> = [
     name: "Emerald",
     tagline: "Growth-coded, nods at messaging without copying WhatsApp green.",
     swatch: "oklch(0.62 0.16 162)",
-  },
-  {
-    id: "cobalt",
-    name: "Cobalt",
-    tagline: "Clean B2B-SaaS blue — calm and product-y.",
-    swatch: "oklch(0.585 0.2 254)",
   },
   {
     id: "amber",
@@ -104,4 +105,39 @@ export function isThemeId(value: unknown): value is ThemeId {
     typeof value === "string" &&
     (THEME_IDS as ReadonlyArray<string>).includes(value)
   );
+}
+
+/**
+ * Retired theme ids → the theme that replaced them.
+ *
+ * `cobalt` was oklch(0.585 0.2 254); `azul` is oklch(0.574 0.195 258).
+ * Visually the same blue, so anyone who had deliberately picked cobalt
+ * wants azul — mapping is a better answer than silently dropping them
+ * onto the default.
+ *
+ * This exists because the id is **persisted in the user's browser**
+ * under `wacrm.theme`. Removing an id from THEME_IDS doesn't remove it
+ * from the devices that already stored it, and without this map those
+ * devices keep an unrecognised string in localStorage indefinitely.
+ * The boot script rewrites the stored value on the next load, so an
+ * entry only has to stay here long enough for every browser to come
+ * back once — but it costs nothing to leave.
+ */
+export const LEGACY_THEME_ALIASES: Readonly<Record<string, ThemeId>> = {
+  cobalt: "azul",
+};
+
+/**
+ * Normalise a possibly-stale stored theme id. Returns the current id
+ * for both live ids and retired ones, or null if the value is
+ * unrecognised (caller falls back to DEFAULT_THEME).
+ */
+export function resolveThemeId(value: unknown): ThemeId | null {
+  if (isThemeId(value)) return value;
+  if (typeof value !== "string") return null;
+  // hasOwnProperty, not `in` / bare indexing: `LEGACY_THEME_ALIASES["toString"]`
+  // resolves up the prototype chain and would hand back a function.
+  return Object.prototype.hasOwnProperty.call(LEGACY_THEME_ALIASES, value)
+    ? LEGACY_THEME_ALIASES[value]
+    : null;
 }
