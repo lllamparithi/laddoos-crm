@@ -33,9 +33,10 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
-  icons: {
-    icon: [{ url: "/icon" }],
-  },
+  // No explicit `icons` entry: `src/app/icon.png` is a Next.js file
+  // convention — the framework injects <link rel="icon"> with the right
+  // type, sizes and cache-busting hash on its own. Declaring it here too
+  // emits a duplicate, weaker link tag.
   formatDetection: {
     email: false,
     address: false,
