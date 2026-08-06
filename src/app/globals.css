@@ -115,7 +115,7 @@ html[data-mode="dark"] {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.28 0.01 260);
   /* Active sidebar nav label — see the light-mode block for the why.
-     Lightened against the dark row: measured 6.46:1. */
+     Lightened against the dark row: measured 6.40:1. */
   --nav-active-foreground: color-mix(in oklab, var(--primary) 70%, white);
 }
 
@@ -159,7 +159,7 @@ html[data-mode="light"] {
      and this tracks automatically instead of pinning a hard-coded blue.
      The mix ratios are deliberately not pushed further than needed: at
      55%/78% the label measured 8.11 / 6.78 but washed the accent out to
-     a pale blue. These land at 6.46 (dark) / 6.08 (light) — ~1.6 above
+     a pale blue. These land at 6.40 (dark) / 6.14 (light) — ~1.6 above
      the AA floor, so a small future surface tweak can't silently drop
      them under, while the row still reads as the brand accent.
      Ratios verified by reading painted pixels, not by source values. */
