@@ -14,8 +14,16 @@ import { cn } from '@/lib/utils';
 export type ChipVariant = 'owner' | 'admin' | 'ok' | 'warn' | 'muted';
 
 const VARIANTS: Record<ChipVariant, string> = {
-  owner: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300',
-  admin: 'border-primary-soft-2 bg-primary-soft text-primary',
+  // The two ROLE variants take their foreground from per-mode tokens.
+  // `owner` previously read `text-amber-600 dark:text-amber-300`, but the
+  // `dark:` variant is inert in this app: globals.css declares
+  // `@custom-variant dark (&:is(.dark *))`, keyed to a `.dark` class, while
+  // the mode switch is `html[data-mode="dark"]`. So it rendered amber-600 in
+  // BOTH modes and measured 2.94:1 on the light chip. The token is already
+  // per-mode, so no variant is needed. See globals.css.
+  owner: 'border-amber-500/40 bg-amber-500/10 text-[var(--role-owner-foreground)]',
+  // `text-primary` on its own primary tint measured 2.12-3.84:1 across accents.
+  admin: 'border-primary-soft-2 bg-primary-soft text-[var(--on-primary-soft)]',
   ok: 'border-emerald-500/35 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
   warn: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300',
   muted: 'border-border bg-muted text-muted-foreground',

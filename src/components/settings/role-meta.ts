@@ -26,13 +26,19 @@ export const ROLE_META: Record<
     icon: Crown,
     label: 'owner',
     variant: 'owner',
-    className: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+    // Foreground comes from the per-mode token, not a flat `text-amber-300`:
+    // that shade measured 1.33:1 on the light-mode chip. See globals.css.
+    className:
+      'border-amber-500/40 bg-amber-500/10 text-[var(--role-owner-foreground)]',
   },
   admin: {
     icon: Shield,
     label: 'admin',
     variant: 'admin',
-    className: 'border-primary/40 bg-primary/10 text-primary',
+    // `text-primary` on its own primary tint is the same hue-on-hue collapse
+    // the sidebar chip and active nav row had — 2.15-3.95:1 across accents.
+    className:
+      'border-primary/40 bg-primary/10 text-[var(--on-primary-soft)]',
   },
   agent: {
     icon: UserCog,
