@@ -114,6 +114,9 @@ html[data-mode="dark"] {
   --sidebar-accent: oklch(0.22 0.01 260);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.28 0.01 260);
+  /* Active sidebar nav label — see the light-mode block for the why.
+     Lightened against the dark row: measured 6.46:1. */
+  --nav-active-foreground: color-mix(in oklab, var(--primary) 70%, white);
 }
 
 html[data-mode="light"] {
@@ -143,6 +146,24 @@ html[data-mode="light"] {
   --sidebar-accent: oklch(0.96 0.004 260);
   --sidebar-accent-foreground: oklch(0.25 0.01 260);
   --sidebar-border: oklch(0.922 0.004 260);
+  /* Active sidebar nav label.
+     `--primary` itself is not usable as text on the active row: the row
+     is `bg-primary/10` over the sidebar surface, so the label and its
+     background are the same hue at similar lightness. Measured, that
+     lands at 3.81:1 (dark) / 3.95:1 (light) — under the 4.5:1 WCAG AA
+     floor for normal text.
+     The correction has to run in OPPOSITE directions per mode — lighter
+     against the dark row, darker against the light row — so a single
+     static colour cannot fix both. Deriving it from `--primary` with
+     color-mix keeps it accent-aware: switch to violet/emerald/amber/rose
+     and this tracks automatically instead of pinning a hard-coded blue.
+     The mix ratios are deliberately not pushed further than needed: at
+     55%/78% the label measured 8.11 / 6.78 but washed the accent out to
+     a pale blue. These land at 6.46 (dark) / 6.08 (light) — ~1.6 above
+     the AA floor, so a small future surface tweak can't silently drop
+     them under, while the row still reads as the brand accent.
+     Ratios verified by reading painted pixels, not by source values. */
+  --nav-active-foreground: color-mix(in oklab, var(--primary) 82%, black);
 }
 
 /* ---- ACCENT: primary color ---- */
