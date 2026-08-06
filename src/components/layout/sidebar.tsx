@@ -230,7 +230,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       // Taller on mobile so fingers can hit the row reliably (≥44px).
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
-                        ? "bg-primary/10 text-primary"
+                        ? // Not `text-primary`: on the `bg-primary/10` row that
+                          // measures 3.81:1 (dark) / 3.95:1 (light), under the
+                          // 4.5:1 AA floor. `--nav-active-foreground` is the
+                          // same accent nudged per mode — see globals.css.
+                          "bg-primary/10 text-[var(--nav-active-foreground)]"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
@@ -279,7 +283,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
-                        ? "bg-primary/10 text-primary"
+                        ? // Not `text-primary`: on the `bg-primary/10` row that
+                          // measures 3.81:1 (dark) / 3.95:1 (light), under the
+                          // 4.5:1 AA floor. `--nav-active-foreground` is the
+                          // same accent nudged per mode — see globals.css.
+                          "bg-primary/10 text-[var(--nav-active-foreground)]"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
