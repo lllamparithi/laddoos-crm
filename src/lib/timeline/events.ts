@@ -195,6 +195,51 @@ export async function listTimelineEventsForContact(
 }
 
 /**
+ * Account-wide feed for the /hub Timeline page.
+ *
+ * Deliberately NOT listTimelineEventsForContact() with the contact
+ * filter dropped: every event the live web SDK writes has
+ * contact_id = NULL (/api/web-events records a handle and an event,
+ * never a contact — see that route's own header), so a contact-scoped
+ * read returns nothing for the only data that currently exists.
+ *
+ * visibility = 'team' is an app-side filter with no RLS equivalent.
+ * timeline_events_account_rw (045) scopes by account only and would
+ * happily return all four tiers. 045 seeds every customer-facing event
+ * type ('web.*', 'message.*', 'campaign.*') at 'team' and every
+ * bookkeeping type ('identity.*', 'system.correction') at 'system';
+ * 'restricted' and 'sensitive' are narrower-audience tiers that no UI
+ * grants access to yet. So 'team' is the only tier a founder feed may
+ * render, and widening it has to be a deliberate edit here.
+ *
+ * ponytail: newest 50, no cursor. The keyset cursor this table wants is
+ * the composite PK tuple — order by (occurred_at DESC, id DESC) and seek
+ * with `.or('occurred_at.lt.<ts>,and(occurred_at.eq.<ts>,id.lt.<id>)')`,
+ * since PostgREST has no row-value comparison. Add it when the feed
+ * exceeds one page; do NOT reuse the `before` option on the contact
+ * helper above, which compares occurred_at alone and so drops or repeats
+ * events that share a timestamp at the page seam.
+ */
+export async function listTimelineEventsForAccount(
+  db: AnySupabaseClient,
+  accountId: string,
+  limit = 50
+): Promise<TimelineEventRow[]> {
+  const { data, error } = await db
+    .from('timeline_events')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('visibility', 'team')
+    .order('occurred_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    throw new TimelineEventError(`Failed to list timeline events: ${error.message}`)
+  }
+  return (data as TimelineEventRow[] | null) ?? []
+}
+
+/**
  * Governance-only patch — restricted to exactly the columns
  * trg_timeline_events_immutable (045) allows to change. Extending this
  * type to include a fact column (event_type, occurred_at, channel,
