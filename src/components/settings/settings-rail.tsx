@@ -84,7 +84,10 @@ export function SettingsRail({
                     'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium whitespace-nowrap transition-colors',
                     'lg:w-full',
                     isActive
-                      ? 'bg-primary-soft text-primary'
+                      ? // Not `text-primary`: on its own `bg-primary-soft` tint
+                        // that is hue-on-hue and measured 2.12-3.84:1 across
+                        // accents. Same token the sidebar nav/chips use.
+                        'bg-primary-soft text-[var(--on-primary-soft)]'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
                 >
@@ -94,7 +97,11 @@ export function SettingsRail({
                     <span
                       className={cn(
                         'hidden items-center gap-1.5 text-xs lg:inline-flex',
-                        isActive ? 'text-primary' : 'text-muted-foreground',
+                        // The hint renders inside the active button, so it sits
+                        // on the same tint and needs the same foreground.
+                        isActive
+                          ? 'text-[var(--on-primary-soft)]'
+                          : 'text-muted-foreground',
                       )}
                     >
                       {hints[s]}
