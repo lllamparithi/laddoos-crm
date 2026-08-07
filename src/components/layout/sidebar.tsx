@@ -41,15 +41,19 @@ const ROLE_CHIP: Record<
     icon: Crown,
     labelKey: "roleOwner",
     // Amber: scarce, immutable, "the boss" — gets visual emphasis.
+    // Foreground is a per-mode token, not a flat `text-amber-300`: that
+    // shade measured 1.33:1 on the light-mode chip. See globals.css.
     className:
-      "border-amber-500/40 bg-amber-500/10 text-amber-300",
+      "border-amber-500/40 bg-amber-500/10 text-[var(--role-owner-foreground)]",
   },
   admin: {
     icon: Shield,
     labelKey: "roleAdmin",
     // Primary-tinted: significant but not as scarce as owner.
+    // `text-primary` on this tint measured 3.81 / 3.95:1 — same hue-on-hue
+    // problem the active nav row has, so it uses the same token.
     className:
-      "border-primary/40 bg-primary/10 text-primary",
+      "border-primary/40 bg-primary/10 text-[var(--on-primary-soft)]",
   },
   agent: {
     icon: UserCog,
@@ -228,7 +232,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     href={item.href}
                     className={cn(
                       // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      // `min-h-11` (44px) rather than more padding: padding
+                      // alone left the row at 40px, and a min-height holds the
+                      // target even if the label wraps or font metrics shift.
+                      // Reset at lg so desktop density is unchanged.
+                      "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:min-h-0 lg:py-2",
                       isActive
                         ? // Not `text-primary`: on the `bg-primary/10` row that
                           // measures 3.81:1 (dark) / 3.95:1 (light), under the
@@ -281,7 +289,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      // Same ≥44px mobile touch target as the main nav above.
+                      "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:min-h-0 lg:py-2",
                       isActive
                         ? // Not `text-primary`: on the `bg-primary/10` row that
                           // measures 3.81:1 (dark) / 3.95:1 (light), under the
