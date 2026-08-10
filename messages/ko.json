@@ -17,6 +17,8 @@
   "Sidebar": {
     "title": "WhatsApp용 CRM 템플릿",
     "dashboard": "대시보드",
+    "sectionOperate": "운영",
+    "sectionGrow": "성장",
     "timeline": "타임라인",
     "inbox": "인박스",
     "notifications": "알림",
@@ -50,6 +52,9 @@
     "pipelines": "파이프라인",
     "broadcasts": "브로드캐스트",
     "automations": "자동화",
+    "flows": "플로우",
+    "aiAgents": "AI 에이전트",
+    "openNotifications": "알림, 읽지 않음 {count}건",
     "settings": "설정",
     "openMenu": "메뉴 열기",
     "openAccountMenu": "계정 메뉴 열기",

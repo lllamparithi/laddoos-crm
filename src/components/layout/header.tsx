@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
+import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
+import { Bell, LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -27,6 +28,8 @@ const pageTitles: Record<string, string> = {
   "/pipelines": "pipelines",
   "/broadcasts": "broadcasts",
   "/automations": "automations",
+  "/flows": "flows",
+  "/agents": "aiAgents",
   "/settings": "settings",
 };
 
@@ -50,6 +53,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   const t = useTranslations("Header");
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
+  const unreadNotifications = useUnreadNotifications();
   const titleKey = getPageTitleKey(pathname);
 
   const initial =
@@ -75,6 +79,29 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        {/* Notifications moved off the sidebar and onto this bell, which
+            carries the same unread count from the same hook. The count is
+            the whole reason the row could be removed — dropping the row
+            without this would silently lose the signal. /notifications
+            and its page are unchanged; this is only how you reach them.
+            Count stays visible while on the page: it reflects unread
+            state, not "currently viewing". */}
+        <Link
+          href="/notifications"
+          aria-label={t("openNotifications", { count: unreadNotifications })}
+          className="relative flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:bg-muted focus:outline-none"
+        >
+          <Bell className="h-5 w-5" />
+          {unreadNotifications > 0 && (
+            <span
+              aria-hidden="true"
+              className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground"
+            >
+              {unreadNotifications > 9 ? "9+" : unreadNotifications}
+            </span>
+          )}
+        </Link>
+
         <ModeToggle />
 
         <DropdownMenu>
