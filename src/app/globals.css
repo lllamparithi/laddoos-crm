@@ -118,8 +118,11 @@ html[data-mode="dark"] {
      block for the why. Lightened against the dark tint: 6.40:1. */
   --on-primary-soft: color-mix(in oklab, var(--primary) 70%, white);
   --nav-active-foreground: var(--on-primary-soft);
+  /* Foreground readable on a `bg-amber-500/10` tint — see the light-mode
+     block for the why. Lightened against the dark tint. */
+  --on-amber-soft: color-mix(in oklab, var(--color-amber-500) 70%, white);
   /* Owner role chip. See the light-mode block. Dark tint: 9.67:1. */
-  --role-owner-foreground: color-mix(in oklab, var(--color-amber-500) 70%, white);
+  --role-owner-foreground: var(--on-amber-soft);
 }
 
 html[data-mode="light"] {
@@ -185,7 +188,15 @@ html[data-mode="light"] {
      those shades — Tailwind v4 tree-shakes the palette, and amber-800/900
      are already absent for exactly that reason.
      Measured: 9.67:1 (dark) / 6.69:1 (light). */
-  --role-owner-foreground: color-mix(in oklab, var(--color-amber-500) 60%, black);
+  --on-amber-soft: color-mix(in oklab, var(--color-amber-500) 60%, black);
+  /* Kept as an alias so the role chip's consuming class needs no edit,
+     and so the two amber-tint foregrounds cannot drift apart — the Flows
+     "Beta" chip has the identical need (same `border-amber-500/40
+     bg-amber-500/10` classes, and it carried the same flat
+     `text-amber-300` that measured 1.33:1 here). Same arrangement as
+     `--nav-active-foreground` aliasing `--on-primary-soft` above.
+     The owner chip's computed value is unchanged by this rename. */
+  --role-owner-foreground: var(--on-amber-soft);
 }
 
 /* ---- ACCENT: primary color ---- */

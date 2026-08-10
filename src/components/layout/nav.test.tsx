@@ -142,6 +142,34 @@ describe("sidebar information architecture", () => {
     expect(html).toContain("Beta");
   });
 
+  /**
+   * The chip carried a flat `text-amber-300`, which measured 1.33:1 on its
+   * own `bg-amber-500/10` tint in light mode — the identical trap the owner
+   * role chip hit. It must consume the per-mode token instead, and keep its
+   * amber background, border, size, radius and shrink-0 behaviour.
+   */
+  it("Beta chip uses the per-mode amber token, not a flat amber shade", () => {
+    const html = renderSidebar();
+    const chip = html.match(/<span[^>]*aria-label="Beta"[^>]*>/)?.[0] ?? "";
+    expect(chip).toContain("text-[var(--on-amber-soft)]");
+    expect(chip).not.toContain("text-amber-300");
+    expect(chip).not.toMatch(/\bdark:/);
+  });
+
+  it("Beta chip keeps its existing background, border, size and layout", () => {
+    const chip =
+      renderSidebar().match(/<span[^>]*aria-label="Beta"[^>]*>/)?.[0] ?? "";
+    for (const cls of [
+      "bg-amber-500/10",
+      "border-amber-500/40",
+      "rounded-full",
+      "text-[9px]",
+      "shrink-0",
+    ]) {
+      expect(chip).toContain(cls);
+    }
+  });
+
   it("keeps the 44px mobile touch target and the accessible active token", () => {
     const html = renderSidebar();
     expect(html).toContain("min-h-11");

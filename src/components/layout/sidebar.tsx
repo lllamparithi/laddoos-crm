@@ -202,7 +202,11 @@ function NavRow({
       {item.beta && (
         <span
           aria-label={t("beta")}
-          className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+          // Not `text-amber-300`: on this `bg-amber-500/10` tint that
+          // measured 1.33:1 in light mode — effectively invisible. Same
+          // flat-colour trap the owner role chip hit; `--on-amber-soft`
+          // is the per-mode token both now share. See globals.css.
+          className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[var(--on-amber-soft)]"
         >
           {t("beta")}
         </span>
