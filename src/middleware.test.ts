@@ -111,3 +111,85 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     expect(res.cookies.get(ROTATED.name)?.value).toBe(ROTATED.value);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Route protection.
+//
+// /hub (the Timeline page added in PR #8) shipped absent from protectedPaths,
+// so production served its shell with HTTP 200 to anonymous visitors while
+// /dashboard correctly redirected. No customer data was reachable — the page
+// fetches through the authenticated browser client and RLS blocks anon — but
+// the authentication boundary was not what it appears to be from the UI.
+//
+// protectedPaths is a hardcoded allow-list, so every new authenticated route
+// has to be added by hand and nothing fails when one is forgotten. These tests
+// pin /hub and its neighbours so this specific regression cannot come back.
+// ---------------------------------------------------------------------------
+describe("middleware — authenticated route protection", () => {
+  it("redirects an unauthenticated user off /hub to /login (the PR #8 gap)", async () => {
+    mockUser = null;
+
+    const res = await middleware(new NextRequest("https://app.test/hub"));
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+  });
+
+  it("also protects paths beneath /hub", async () => {
+    mockUser = null;
+
+    const res = await middleware(
+      new NextRequest("https://app.test/hub/anything"),
+    );
+
+    expect(res.headers.get("location")).toContain("/login");
+  });
+
+  it("lets a signed-in user reach /hub", async () => {
+    mockUser = { id: "user-1" };
+
+    const res = await middleware(new NextRequest("https://app.test/hub"));
+
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it.each([
+    "/dashboard",
+    "/inbox",
+    "/contacts",
+    "/pipelines",
+    "/broadcasts",
+    "/automations",
+    "/settings",
+  ])("still redirects an unauthenticated user off %s", async (path) => {
+    mockUser = null;
+
+    const res = await middleware(new NextRequest(`https://app.test${path}`));
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/login");
+  });
+
+  it.each(["/login", "/signup", "/forgot-password"])(
+    "leaves the public auth page %s reachable when signed out",
+    async (path) => {
+      mockUser = null;
+
+      const res = await middleware(new NextRequest(`https://app.test${path}`));
+
+      expect(res.headers.get("location")).toBeNull();
+    },
+  );
+
+  it.each(["/join/abc123", "/api/web-events"])(
+    "leaves the public route %s reachable when signed out",
+    async (path) => {
+      mockUser = null;
+
+      const res = await middleware(new NextRequest(`https://app.test${path}`));
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.status).not.toBe(401);
+    },
+  );
+});
