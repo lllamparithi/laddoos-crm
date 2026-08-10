@@ -17,6 +17,8 @@
   "Sidebar": {
     "title": "AE Yali - Omni",
     "dashboard": "Dashboard",
+    "sectionOperate": "Operate",
+    "sectionGrow": "Grow",
     "timeline": "Timeline",
     "inbox": "Inbox",
     "notifications": "Notifications",
@@ -50,6 +52,9 @@
     "pipelines": "Pipelines",
     "broadcasts": "Broadcasts",
     "automations": "Automations",
+    "flows": "Flows",
+    "aiAgents": "AI Agents",
+    "openNotifications": "Notifications, {count} unread",
     "settings": "Settings",
     "openMenu": "Open menu",
     "openAccountMenu": "Open account menu",

@@ -6,10 +6,8 @@ import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
-import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
   Activity,
-  Bell,
   Bot,
   Crown,
   GitBranch,
@@ -93,24 +91,134 @@ interface NavItem {
    * Purely informational — doesn't affect routing or access.
    */
   beta?: boolean;
+  /**
+   * Renders the row indented, reading as related to the row above it.
+   * Flows is the advanced visual journey-builder that sits alongside the
+   * everyday Automations rule-builder — both are kept, and the indent
+   * says "same job, deeper tool" without demoting Flows to a submenu.
+   * It stays an ordinary, focusable link to its own route.
+   */
+  subordinate?: boolean;
 }
 
-const navItems: NavItem[] = [
-  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
-  { href: "/hub", labelKey: "timeline", icon: Activity },
-  { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
-  { href: "/notifications", labelKey: "notifications", icon: Bell },
-  { href: "/contacts", labelKey: "contacts", icon: Users },
-  { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
-  { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
-  { href: "/automations", labelKey: "automations", icon: Zap },
-  { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },
-  { href: "/agents", labelKey: "aiAgents", icon: Bot },
+interface NavSection {
+  /** Key in the Sidebar namespace. Rendered as a real group label. */
+  labelKey: string;
+  items: NavItem[];
+}
+
+// Two labelled sections mirroring what the founder actually does:
+// run today (Operate), then build leverage for next week (Grow).
+// Notifications deliberately has no row here — it lives on the header
+// bell, which carries the same unread count. The /notifications route
+// and page are untouched.
+const navSections: NavSection[] = [
+  {
+    labelKey: "sectionOperate",
+    items: [
+      { href: "/hub", labelKey: "timeline", icon: Activity },
+      { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
+      { href: "/contacts", labelKey: "contacts", icon: Users },
+      { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
+    ],
+  },
+  {
+    labelKey: "sectionGrow",
+    items: [
+      { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
+      { href: "/automations", labelKey: "automations", icon: Zap },
+      {
+        href: "/flows",
+        labelKey: "flows",
+        icon: Workflow,
+        beta: true,
+        subordinate: true,
+      },
+      { href: "/agents", labelKey: "aiAgents", icon: Bot },
+    ],
+  },
 ];
 
-const bottomNavItems = [
+// Unlabelled footer group: reachable, deliberately quiet. Dashboard moved
+// here because Timeline is now the founder's activity view; the logo also
+// links to /dashboard.
+const footerNavItems: NavItem[] = [
+  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { href: "/settings", labelKey: "settings", icon: Settings },
 ];
+
+/** Unchanged from the previous flat nav — same matching, same edge case. */
+function isNavItemActive(pathname: string, href: string): boolean {
+  return (
+    pathname === href || (href !== "/dashboard" && pathname.startsWith(href))
+  );
+}
+
+/**
+ * One nav row. Every rendering path in this sidebar goes through here,
+ * which is the point: `aria-current="page"` cannot be applied to the
+ * sectioned lists and forgotten on the footer list, because there is
+ * only one implementation. The active state is colour-only otherwise,
+ * so assistive tech had no position cue at all before this.
+ */
+function NavRow({
+  item,
+  active,
+  t,
+  totalUnread,
+}: {
+  item: NavItem;
+  active: boolean;
+  t: ReturnType<typeof useTranslations>;
+  totalUnread: number;
+}) {
+  const showUnreadDot = item.href === "/inbox" && totalUnread > 0 && !active;
+
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        // Taller on mobile so fingers can hit the row reliably (≥44px).
+        // `min-h-11` (44px) rather than more padding: padding alone left
+        // the row at 40px, and a min-height holds the target even if the
+        // label wraps or font metrics shift. Reset at lg so desktop
+        // density is unchanged.
+        "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:min-h-0 lg:py-2",
+        // Indent only the content — the row stays full-width, so the
+        // touch target is not shrunk by the subordinate treatment.
+        item.subordinate && "pl-7",
+        active
+          ? // Not `text-primary`: on the `bg-primary/10` row that measures
+            // 3.81:1 (dark) / 3.95:1 (light), under the 4.5:1 AA floor.
+            // `--nav-active-foreground` is the same accent nudged per
+            // mode — see globals.css.
+            "bg-primary/10 text-[var(--nav-active-foreground)]"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <item.icon className="h-4 w-4 shrink-0" />
+      <span className="flex-1 truncate">{t(item.labelKey)}</span>
+      {item.beta && (
+        <span
+          aria-label={t("beta")}
+          className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
+        >
+          {t("beta")}
+        </span>
+      )}
+      {showUnreadDot && (
+        <span
+          aria-label={t("unreadConversations", { count: totalUnread })}
+          className="relative flex h-2 w-2 shrink-0"
+        >
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+        </span>
+      )}
+    </Link>
+  );
+}
 
 interface SidebarProps {
   /** Controlled on mobile by the Header's hamburger button. Ignored on lg+. */
@@ -125,7 +233,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
-  const unreadNotifications = useUnreadNotifications();
   // Only surface the account-name strip when it actually carries
   // information. A solo user's personal account is named after them
   // (the 017 signup trigger seeds it from `full_name`), so showing it
@@ -212,102 +319,43 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
-
-              const showUnreadDot =
-                item.href === "/inbox" && totalUnread > 0 && !isActive;
-
-              // Unlike the inbox dot, the notifications count stays visible
-              // even while the page is active — it reflects unread state
-              // (cleared by marking notifications read), not "currently
-              // viewing this section".
-              const showNotificationBadge =
-                item.href === "/notifications" && unreadNotifications > 0;
-
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      // `min-h-11` (44px) rather than more padding: padding
-                      // alone left the row at 40px, and a min-height holds the
-                      // target even if the label wraps or font metrics shift.
-                      // Reset at lg so desktop density is unchanged.
-                      "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:min-h-0 lg:py-2",
-                      isActive
-                        ? // Not `text-primary`: on the `bg-primary/10` row that
-                          // measures 3.81:1 (dark) / 3.95:1 (light), under the
-                          // 4.5:1 AA floor. `--nav-active-foreground` is the
-                          // same accent nudged per mode — see globals.css.
-                          "bg-primary/10 text-[var(--nav-active-foreground)]"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{t(item.labelKey as string)}</span>
-                    {item.beta && (
-                      <span
-                        aria-label={t("beta")}
-                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
-                      >
-                        {t("beta")}
-                      </span>
-                    )}
-                    {showUnreadDot && (
-                      <span
-                        aria-label={t("unreadConversations", { count: totalUnread })}
-                        className="relative flex h-2 w-2"
-                      >
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                      </span>
-                    )}
-                    {showNotificationBadge && (
-                      <span
-                        aria-label={t("unreadNotifications", { count: unreadNotifications })}
-                        className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
-                      >
-                        {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          {navSections.map((section, index) => (
+            <div key={section.labelKey} className={cn(index > 0 && "mt-5")}>
+              {/* A real heading, not a styled div, so the group is
+                  reachable by landmark/heading navigation. Sized down
+                  rather than coloured differently — the accent tokens
+                  stay reserved for the active row. */}
+              <h2 className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {t(section.labelKey)}
+              </h2>
+              <ul className="flex flex-col gap-1">
+                {section.items.map((item) => (
+                  <li key={item.href}>
+                    <NavRow
+                      item={item}
+                      active={isNavItemActive(pathname, item.href)}
+                      t={t}
+                      totalUnread={totalUnread}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
           <div className="my-4 border-t border-border" />
 
           <ul className="flex flex-col gap-1">
-            {bottomNavItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      // Same ≥44px mobile touch target as the main nav above.
-                      "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:min-h-0 lg:py-2",
-                      isActive
-                        ? // Not `text-primary`: on the `bg-primary/10` row that
-                          // measures 3.81:1 (dark) / 3.95:1 (light), under the
-                          // 4.5:1 AA floor. `--nav-active-foreground` is the
-                          // same accent nudged per mode — see globals.css.
-                          "bg-primary/10 text-[var(--nav-active-foreground)]"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {t(item.labelKey as string)}
-                  </Link>
-                </li>
-              );
-            })}
+            {footerNavItems.map((item) => (
+              <li key={item.href}>
+                <NavRow
+                  item={item}
+                  active={isNavItemActive(pathname, item.href)}
+                  t={t}
+                  totalUnread={totalUnread}
+                />
+              </li>
+            ))}
           </ul>
         </nav>
 
