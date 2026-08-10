@@ -193,3 +193,40 @@ describe("middleware — authenticated route protection", () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// Legacy routes that predate /hub.
+//
+// /flows, /agents and /notifications are genuine founder-authenticated CRM
+// pages that were never added to protectedPaths, so production served their
+// shells with HTTP 200 to anonymous visitors. No customer data was reachable —
+// the backing APIs return 401 and the pages fetch client-side under RLS — but
+// the route-level authentication boundary was not what the UI implies.
+//
+// /flows is the one with nested pages (/flows/[id], /flows/[id]/runs), so the
+// sub-path case is asserted explicitly rather than assumed from startsWith().
+// ---------------------------------------------------------------------------
+describe("middleware — legacy route protection", () => {
+  it.each(["/flows", "/flows/test-id", "/agents", "/notifications"])(
+    "redirects an unauthenticated user off %s to /login",
+    async (path) => {
+      mockUser = null;
+
+      const res = await middleware(new NextRequest(`https://app.test${path}`));
+
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toContain("/login");
+    },
+  );
+
+  it.each(["/flows", "/flows/test-id", "/agents", "/notifications"])(
+    "lets a signed-in user reach %s",
+    async (path) => {
+      mockUser = { id: "user-1" };
+
+      const res = await middleware(new NextRequest(`https://app.test${path}`));
+
+      expect(res.headers.get("location")).toBeNull();
+    },
+  );
+});
