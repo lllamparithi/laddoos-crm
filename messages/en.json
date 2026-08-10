@@ -17,6 +17,7 @@
   "Sidebar": {
     "title": "AE Yali - Omni",
     "dashboard": "Dashboard",
+    "timeline": "Timeline",
     "inbox": "Inbox",
     "notifications": "Notifications",
     "contacts": "Contacts",
@@ -42,6 +43,7 @@
   },
   "Header": {
     "dashboard": "Dashboard",
+    "timeline": "Timeline",
     "inbox": "Inbox",
     "notifications": "Notifications",
     "contacts": "Contacts",

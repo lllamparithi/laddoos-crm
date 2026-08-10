@@ -6,6 +6,7 @@ import {
   TimelineEventError,
   recordTimelineEvent,
   listTimelineEventsForContact,
+  listTimelineEventsForAccount,
   updateTimelineEventGovernance,
 } from './events'
 
@@ -138,6 +139,103 @@ describe('listTimelineEventsForContact', () => {
     await expect(
       listTimelineEventsForContact(db, 'acct-1', 'contact-1')
     ).rejects.toBeInstanceOf(TimelineEventError)
+  })
+})
+
+/**
+ * Records the PostgREST chain a query builds, so these tests can assert
+ * what was actually SENT rather than only what came back. `fakeDb` above
+ * returns a canned response and swallows every filter, which cannot tell
+ * "scoped to this account" apart from "no filter at all" — the
+ * false-pass shape this project has been bitten by before. The database
+ * does the real filtering; what is pinned here is the predicate.
+ */
+function recordingDb(rows: unknown[]) {
+  const calls = {
+    table: '',
+    eq: [] as Array<[string, unknown]>,
+    order: [] as Array<[string, boolean | undefined]>,
+    limit: undefined as number | undefined,
+  }
+  const builder = {
+    select: () => builder,
+    eq: (column: string, value: unknown) => {
+      calls.eq.push([column, value])
+      return builder
+    },
+    order: (column: string, options?: { ascending?: boolean }) => {
+      calls.order.push([column, options?.ascending])
+      return builder
+    },
+    limit: (n: number) => {
+      calls.limit = n
+      return builder
+    },
+    then: (resolve: (v: { data: unknown; error: null }) => void) =>
+      Promise.resolve({ data: rows, error: null }).then(resolve),
+  }
+  const db = {
+    from: (table: string) => {
+      calls.table = table
+      return builder
+    },
+  } as unknown as SupabaseClient
+  return { db: db as AnySupabaseClient, calls }
+}
+
+describe('listTimelineEventsForAccount', () => {
+  it('scopes the query to the given account', async () => {
+    const { db, calls } = recordingDb([baseRow])
+    await listTimelineEventsForAccount(db, 'acct-1')
+    expect(calls.table).toBe('timeline_events')
+    expect(calls.eq).toContainEqual(['account_id', 'acct-1'])
+  })
+
+  it('filters to team visibility, so system/restricted/sensitive events never reach the feed', async () => {
+    const { db, calls } = recordingDb([baseRow])
+    await listTimelineEventsForAccount(db, 'acct-1')
+    expect(calls.eq).toContainEqual(['visibility', 'team'])
+  })
+
+  it('does NOT filter by contact_id — the live web events all have contact_id NULL', async () => {
+    const { db, calls } = recordingDb([baseRow])
+    await listTimelineEventsForAccount(db, 'acct-1')
+    expect(calls.eq.map(([column]) => column)).not.toContain('contact_id')
+  })
+
+  it('orders newest first', async () => {
+    const { db, calls } = recordingDb([baseRow])
+    await listTimelineEventsForAccount(db, 'acct-1')
+    expect(calls.order).toEqual([['occurred_at', false]])
+  })
+
+  it('defaults to a limit of 50', async () => {
+    const { db, calls } = recordingDb([baseRow])
+    await listTimelineEventsForAccount(db, 'acct-1')
+    expect(calls.limit).toBe(50)
+  })
+
+  it('honours an explicit limit', async () => {
+    const { db, calls } = recordingDb([baseRow])
+    await listTimelineEventsForAccount(db, 'acct-1', 10)
+    expect(calls.limit).toBe(10)
+  })
+
+  it('returns the rows it receives', async () => {
+    const { db } = recordingDb([baseRow])
+    await expect(listTimelineEventsForAccount(db, 'acct-1')).resolves.toHaveLength(1)
+  })
+
+  it('returns an empty array rather than null', async () => {
+    const db = fakeDb([{ data: null, error: null }])
+    await expect(listTimelineEventsForAccount(db, 'acct-1')).resolves.toEqual([])
+  })
+
+  it('surfaces query errors', async () => {
+    const db = fakeDb([{ data: null, error: { message: 'timeout' } }])
+    await expect(listTimelineEventsForAccount(db, 'acct-1')).rejects.toBeInstanceOf(
+      TimelineEventError
+    )
   })
 })
 
