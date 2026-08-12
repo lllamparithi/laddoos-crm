@@ -89,6 +89,44 @@ describe('TimelineFeed states', () => {
   })
 })
 
+/**
+ * The contact tab reuses this component with its own empty copy. "No
+ * activity yet" is a claim about the account; on a contact it would assert
+ * something the data cannot support, since unlinked activity may exist.
+ */
+describe('TimelineFeed empty copy is overridable for the contact tab', () => {
+  it('defaults to the account-wide copy when no override is given', () => {
+    const html = render({ status: 'ready', events: [] })
+    expect(html).toContain('No activity yet')
+    expect(html).toContain('for this account so far')
+  })
+
+  it('renders contact-specific copy when overridden', () => {
+    const html = render({
+      status: 'ready',
+      events: [],
+      emptyTitle: 'No linked activity yet',
+      emptyBody: 'Activity appears here once it can be attributed to this contact.',
+    })
+    expect(html).toContain('No linked activity yet')
+    expect(html).toContain('attributed to this contact')
+    // Must not claim the contact has no activity at all.
+    expect(html).not.toContain('No activity yet')
+    expect(html).not.toContain('for this account so far')
+  })
+
+  it('override does not affect the loading or error states', () => {
+    const loading = render({ status: 'loading', emptyTitle: 'No linked activity yet' })
+    expect(loading).toContain('animate-pulse')
+    expect(loading).not.toContain('No linked activity yet')
+
+    const error = render({ status: 'error', emptyTitle: 'No linked activity yet' })
+    expect(error).toContain('Could not load activity')
+    expect(error).toContain('Try again')
+    expect(error).not.toContain('No linked activity yet')
+  })
+})
+
 describe('TimelineFeed row rendering', () => {
   it('omits the confidence chip when the event is verified', () => {
     const html = render({ status: 'ready', events: [baseEvent] })

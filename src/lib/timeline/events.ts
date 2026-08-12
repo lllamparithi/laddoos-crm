@@ -18,6 +18,7 @@
 
 import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 import { isUniqueViolation } from '@/lib/contacts/dedupe'
+import { listIdentityHandlesForContact } from '@/lib/identity/handles'
 
 export type TimelineConfidence = 'verified' | 'strong' | 'probable' | 'unknown' | 'rejected'
 export type TimelineVisibility = 'team' | 'restricted' | 'sensitive' | 'system'
@@ -235,6 +236,66 @@ export async function listTimelineEventsForAccount(
 
   if (error) {
     throw new TimelineEventError(`Failed to list timeline events: ${error.message}`)
+  }
+  return (data as TimelineEventRow[] | null) ?? []
+}
+
+/**
+ * Customer-wise timeline for one contact — the Contact detail Timeline tab.
+ *
+ * Resolves through identity handles rather than backfilling
+ * timeline_events.contact_id, and that choice is the whole design:
+ *
+ *   - handle_id is the IMMUTABLE fact on timeline_events ("this browser did
+ *     this"); contact_id is the RESOLVED, late-bound column (045). Joining on
+ *     the fact means a contact's history appears the moment a handle is
+ *     linked, INCLUDING events recorded long before the link — with zero
+ *     writes to an append-only table, and unlinking is instantly reflected.
+ *   - The alternative (UPDATE historical rows on link) mutates many rows,
+ *     has to be redone on every merge/unmerge, and would make this read
+ *     depend on a backfill having run.
+ *
+ * Both paths are unioned because they cover different events: handle-derived
+ * ones (web, Instagram) and any event written with a contact_id directly.
+ *
+ * Scoping is belt-and-braces: the explicit account_id filter here, plus
+ * timeline_events_account_rw / identity_handles_account_rw RLS underneath.
+ * A handle belonging to another account cannot enter the id list, because
+ * listIdentityHandlesForContact is itself account-scoped.
+ *
+ * ponytail: newest 50, no cursor — same as the account feed. See
+ * listTimelineEventsForAccount's comment for the keyset design when it
+ * outgrows one page.
+ */
+export async function listTimelineEventsForContactViaHandles(
+  db: AnySupabaseClient,
+  accountId: string,
+  contactId: string,
+  limit = 50
+): Promise<TimelineEventRow[]> {
+  const handles = await listIdentityHandlesForContact(db, accountId, contactId)
+  const handleIds = handles.map((handle) => handle.id)
+
+  let query = db
+    .from('timeline_events')
+    .select('*')
+    .eq('account_id', accountId)
+    // Same team-only rule as the account feed: 045 seeds bookkeeping types
+    // at 'system', and 'restricted'/'sensitive' have no grant UI.
+    .eq('visibility', 'team')
+
+  query = handleIds.length
+    ? query.or(`contact_id.eq.${contactId},handle_id.in.(${handleIds.join(',')})`)
+    : query.eq('contact_id', contactId)
+
+  const { data, error } = await query
+    .order('occurred_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    throw new TimelineEventError(
+      `Failed to list timeline events for contact: ${error.message}`
+    )
   }
   return (data as TimelineEventRow[] | null) ?? []
 }

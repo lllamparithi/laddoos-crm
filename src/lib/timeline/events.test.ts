@@ -7,6 +7,7 @@ import {
   recordTimelineEvent,
   listTimelineEventsForContact,
   listTimelineEventsForAccount,
+  listTimelineEventsForContactViaHandles,
   updateTimelineEventGovernance,
 } from './events'
 
@@ -236,6 +237,174 @@ describe('listTimelineEventsForAccount', () => {
     await expect(listTimelineEventsForAccount(db, 'acct-1')).rejects.toBeInstanceOf(
       TimelineEventError
     )
+  })
+})
+
+/**
+ * Two-table stub: the contact timeline reads identity_handles first, then
+ * timeline_events. Records the predicates sent to each so the tests can
+ * assert what was ASKED for. The database does the actual filtering; what
+ * is pinned here is the query contract.
+ */
+function contactTimelineDb(
+  handles: Array<{ id: string }>,
+  events: unknown[],
+  opts: { handlesError?: { message: string }; eventsError?: { message: string } } = {}
+) {
+  const calls = {
+    tables: [] as string[],
+    handleEq: [] as Array<[string, unknown]>,
+    eventEq: [] as Array<[string, unknown]>,
+    or: null as string | null,
+    order: [] as Array<[string, boolean | undefined]>,
+    limit: undefined as number | undefined,
+  }
+  const db = {
+    from: (table: string) => {
+      calls.tables.push(table)
+      const isHandles = table === 'identity_handles'
+      const response = isHandles
+        ? { data: opts.handlesError ? null : handles, error: opts.handlesError ?? null }
+        : { data: opts.eventsError ? null : events, error: opts.eventsError ?? null }
+      const builder = {
+        select: () => builder,
+        eq: (column: string, value: unknown) => {
+          ;(isHandles ? calls.handleEq : calls.eventEq).push([column, value])
+          return builder
+        },
+        or: (expression: string) => {
+          calls.or = expression
+          return builder
+        },
+        order: (column: string, options?: { ascending?: boolean }) => {
+          calls.order.push([column, options?.ascending])
+          return builder
+        },
+        limit: (n: number) => {
+          calls.limit = n
+          return builder
+        },
+        then: (resolve: (v: typeof response) => void) =>
+          Promise.resolve(response).then(resolve),
+      }
+      return builder
+    },
+  } as unknown as SupabaseClient
+  return { db: db as AnySupabaseClient, calls }
+}
+
+const handleEvent = { ...baseRow, id: 'evt-handle', contact_id: null, handle_id: 'handle-1' }
+const directEvent = { ...baseRow, id: 'evt-direct', contact_id: 'contact-1', handle_id: null }
+
+describe('listTimelineEventsForContactViaHandles', () => {
+  it('returns empty for a contact with no linked handles and no direct events', async () => {
+    const { db, calls } = contactTimelineDb([], [])
+    await expect(
+      listTimelineEventsForContactViaHandles(db, 'acct-1', 'contact-1')
+    ).resolves.toEqual([])
+    // With no handles there is nothing to union — it must fall back to the
+    // direct contact_id filter rather than sending an empty `in.()` list.
+    expect(calls.or).toBeNull()
+    expect(calls.eventEq).toContainEqual(['contact_id', 'contact-1'])
+  })
+
+  it('unions handle-associated events when the contact has linked handles', async () => {
+    const { db, calls } = contactTimelineDb(
+      [{ id: 'handle-1' }, { id: 'handle-2' }],
+      [handleEvent]
+    )
+    const rows = await listTimelineEventsForContactViaHandles(db, 'acct-1', 'contact-1')
+    expect(rows).toHaveLength(1)
+    expect(calls.or).toBe(
+      'contact_id.eq.contact-1,handle_id.in.(handle-1,handle-2)'
+    )
+  })
+
+  it('includes an event associated directly through contact_id', async () => {
+    const { db } = contactTimelineDb([{ id: 'handle-1' }], [directEvent])
+    const rows = await listTimelineEventsForContactViaHandles(db, 'acct-1', 'contact-1')
+    expect(rows.map((r) => r.id)).toContain('evt-direct')
+  })
+
+  it('scopes both reads to the account, so another account cannot leak in', async () => {
+    const { db, calls } = contactTimelineDb([{ id: 'handle-1' }], [handleEvent])
+    await listTimelineEventsForContactViaHandles(db, 'acct-1', 'contact-1')
+    expect(calls.handleEq).toContainEqual(['account_id', 'acct-1'])
+    expect(calls.eventEq).toContainEqual(['account_id', 'acct-1'])
+    // Handles are resolved account-scoped, so a foreign account's handle id
+    // can never reach the events query in the first place.
+    expect(calls.handleEq).toContainEqual(['contact_id', 'contact-1'])
+  })
+
+  it('filters to team visibility', async () => {
+    const { db, calls } = contactTimelineDb([{ id: 'handle-1' }], [handleEvent])
+    await listTimelineEventsForContactViaHandles(db, 'acct-1', 'contact-1')
+    expect(calls.eventEq).toContainEqual(['visibility', 'team'])
+  })
+
+  it('orders newest first', async () => {
+    const { db, calls } = contactTimelineDb([], [])
+    await listTimelineEventsForContactViaHandles(db, 'acct-1', 'contact-1')
+    expect(calls.order).toEqual([['occurred_at', false]])
+  })
+
+  it('defaults to a limit of 50 and honours an explicit limit', async () => {
+    const a = contactTimelineDb([], [])
+    await listTimelineEventsForContactViaHandles(a.db, 'acct-1', 'contact-1')
+    expect(a.calls.limit).toBe(50)
+
+    const b = contactTimelineDb([], [])
+    await listTimelineEventsForContactViaHandles(b.db, 'acct-1', 'contact-1', 10)
+    expect(b.calls.limit).toBe(10)
+  })
+
+  it('reads identity_handles before timeline_events', async () => {
+    const { db, calls } = contactTimelineDb([{ id: 'handle-1' }], [handleEvent])
+    await listTimelineEventsForContactViaHandles(db, 'acct-1', 'contact-1')
+    expect(calls.tables).toEqual(['identity_handles', 'timeline_events'])
+  })
+
+  it('never writes — only select/filter/order/limit are used', async () => {
+    const writes: string[] = []
+    const db = {
+      from: () => {
+        const builder = {
+          select: () => builder,
+          eq: () => builder,
+          or: () => builder,
+          order: () => builder,
+          limit: () => builder,
+          insert: () => { writes.push('insert'); return builder },
+          update: () => { writes.push('update'); return builder },
+          delete: () => { writes.push('delete'); return builder },
+          upsert: () => { writes.push('upsert'); return builder },
+          then: (resolve: (v: { data: unknown; error: null }) => void) =>
+            Promise.resolve({ data: [], error: null }).then(resolve),
+        }
+        return builder
+      },
+    } as unknown as SupabaseClient
+    await listTimelineEventsForContactViaHandles(db as AnySupabaseClient, 'acct-1', 'contact-1')
+    expect(writes).toEqual([])
+  })
+
+  it('surfaces query errors', async () => {
+    const { db } = contactTimelineDb([], [], { eventsError: { message: 'timeout' } })
+    await expect(
+      listTimelineEventsForContactViaHandles(db, 'acct-1', 'contact-1')
+    ).rejects.toBeInstanceOf(TimelineEventError)
+  })
+})
+
+describe('listTimelineEventsForAccount is unaffected by the contact helper', () => {
+  it('still filters by account + visibility only, with no contact or handle predicate', async () => {
+    const { db, calls } = recordingDb([baseRow])
+    await listTimelineEventsForAccount(db, 'acct-1')
+    const columns = calls.eq.map(([column]) => column)
+    expect(columns).toContain('account_id')
+    expect(columns).toContain('visibility')
+    expect(columns).not.toContain('contact_id')
+    expect(columns).not.toContain('handle_id')
   })
 })
 
