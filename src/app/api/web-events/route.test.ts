@@ -203,7 +203,13 @@ describe('POST /api/web-events — CORS', () => {
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-origin')).toBe(ALLOWED)
     expect(response.headers.get('access-control-allow-methods')).toBe('POST, OPTIONS')
-    expect(response.headers.get('access-control-allow-headers')).toBe('Content-Type')
+    // preflightResponse advertises one fixed list for both Phase 2A
+    // endpoints. This route only sends Content-Type; the visitor-id entry
+    // is there for continuation-resolve. Advertising it is inert — an
+    // allow-list permits a header, it does not require or read one.
+    expect(response.headers.get('access-control-allow-headers')).toBe(
+      'Content-Type, x-yali-visitor-id'
+    )
   })
 
   it('403s the preflight for a disallowed origin', async () => {

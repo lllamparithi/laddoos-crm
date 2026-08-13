@@ -3,6 +3,7 @@ import {
   readContinuationRefFromUrl,
   stripContinuationRefFromUrl,
   resolveContinuationFromUrl,
+  VISITOR_ID_HEADER,
 } from './continuation'
 
 afterEach(() => {
@@ -160,8 +161,76 @@ describe('resolveContinuationFromUrl', () => {
       apiBaseUrl: 'https://admin.laddoosdotcom.in',
     })
     expect(fetchImpl).toHaveBeenCalledWith(
-      expect.stringContaining('https://admin.laddoosdotcom.in/api/continuation-tokens/resolve?ref=')
+      expect.stringContaining('https://admin.laddoosdotcom.in/api/continuation-tokens/resolve?ref='),
+      // No visitorId supplied, so no init object is passed at all.
+      undefined
     )
+  })
+
+  describe('visitor id travels in a header, never the query string', () => {
+    it('sends the visitor id in VISITOR_ID_HEADER when supplied', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: false }) })
+      await resolveContinuationFromUrl({
+        url: 'https://laddoos.com/x?yali_ref=v1.a.b',
+        fetchImpl,
+        visitorId: 'visitor-abc-123',
+      })
+      const [url, init] = fetchImpl.mock.calls[0]
+      expect((init as RequestInit).headers).toMatchObject({
+        [VISITOR_ID_HEADER]: 'visitor-abc-123',
+      })
+      // The whole point of the header: it must not leak into access logs,
+      // browser history or a Referer sent to a third party.
+      expect(url).not.toContain('visitor-abc-123')
+      expect(url).not.toContain(VISITOR_ID_HEADER)
+    })
+
+    it('omits the header entirely when no visitor id is supplied', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: false }) })
+      await resolveContinuationFromUrl({
+        url: 'https://laddoos.com/x?yali_ref=v1.a.b',
+        fetchImpl,
+      })
+      expect(fetchImpl.mock.calls[0][1]).toBeUndefined()
+    })
+
+    it('still resolves for attribution when the visitor id is absent', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true, purpose: 'ig_to_web', binds_identity: true, is_first_use: true }),
+      })
+      const outcome = await resolveContinuationFromUrl({
+        url: 'https://laddoos.com/x?yali_ref=v1.a.b',
+        fetchImpl,
+      })
+      expect(outcome).toMatchObject({ present: true, resolved: true })
+    })
+  })
+
+  describe('the response no longer carries internal ids', () => {
+    it('drops origin_contact_id / origin_handle_id even if a server sent them', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          purpose: 'ig_to_web',
+          origin_conversation_id: 'conv-1',
+          origin_contact_id: 'contact-SHOULD-NOT-SURFACE',
+          origin_handle_id: 'handle-SHOULD-NOT-SURFACE',
+          binds_identity: true,
+          is_first_use: true,
+        }),
+      })
+      const outcome = await resolveContinuationFromUrl({
+        url: 'https://laddoos.com/x?yali_ref=v1.a.b',
+        fetchImpl,
+      })
+      const serialised = JSON.stringify(outcome)
+      expect(serialised).not.toContain('contact-SHOULD-NOT-SURFACE')
+      expect(serialised).not.toContain('handle-SHOULD-NOT-SURFACE')
+      expect(serialised).not.toContain('originContactId')
+      expect(serialised).not.toContain('originHandleId')
+    })
   })
 
   it('strips the ref from the address bar by default when a window is present', async () => {

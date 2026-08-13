@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { parseAllowedOrigins, allowedOriginFor, withCors, preflightResponse } from './cors'
+import { VISITOR_ID_HEADER } from '@/lib/web-sdk/continuation'
 
 const ALLOW = 'https://laddoos.com,https://www.laddoos.com'
 
@@ -143,9 +144,27 @@ describe('preflightResponse', () => {
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-origin')).toBe('https://laddoos.com')
     expect(response.headers.get('access-control-allow-methods')).toBe('POST, OPTIONS')
-    expect(response.headers.get('access-control-allow-headers')).toBe('Content-Type')
+    expect(response.headers.get('access-control-allow-headers')).toBe(
+      'Content-Type, x-yali-visitor-id'
+    )
     expect(response.headers.get('access-control-max-age')).toBe('600')
     expect(response.headers.get('vary')).toContain('Origin')
+  })
+
+  /**
+   * Without the visitor-id header on this list the browser drops it at the
+   * preflight and identity linking silently stops working — no error, no
+   * log, just no links. Pinned against the SDK's own constant so a rename
+   * fails here rather than in production.
+   */
+  it('permits the visitor-id header the continuation-resolve GET now sends', () => {
+    vi.stubEnv('YALI_WEB_SDK_ALLOWED_ORIGINS', ALLOW)
+    const allowed = preflightResponse(req('https://laddoos.com'), 'GET')
+      .headers.get('access-control-allow-headers')!
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+    expect(allowed).toContain(VISITOR_ID_HEADER)
+    expect(allowed).toContain('content-type')
   })
 
   it('reflects the route method it was given', () => {
@@ -182,8 +201,11 @@ describe('preflightResponse', () => {
       },
     })
     // The allowed set is fixed, never a reflection of what was asked for.
-    expect(preflightResponse(request, 'POST').headers.get('access-control-allow-headers')).toBe(
-      'Content-Type'
-    )
+    // It grew by exactly one entry (the visitor-id header); the property
+    // that matters is unchanged — what the caller ASKS for is ignored.
+    const allowed = preflightResponse(request, 'POST').headers.get('access-control-allow-headers')!
+    expect(allowed).toBe(`Content-Type, ${VISITOR_ID_HEADER}`)
+    expect(allowed).not.toContain('x-api-key')
+    expect(allowed).not.toContain('authorization')
   })
 })

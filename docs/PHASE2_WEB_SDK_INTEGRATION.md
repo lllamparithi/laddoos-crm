@@ -41,7 +41,7 @@ and answer the `OPTIONS` preflight:
 | Endpoint | Preflights? | Why |
 |---|---|---|
 | `POST /api/web-events` | **Yes** | The SDK sends `Content-Type: application/json`, which makes it a non-simple request |
-| `GET /api/continuation-tokens/resolve` | No | Bare GET, no custom headers — a simple request. It has an `OPTIONS` handler anyway, so the pair behaves identically if a header is ever added |
+| `GET /api/continuation-tokens/resolve` | **Yes** | Sends the `x-yali-visitor-id` header, which makes it a non-simple request. The header is on the fixed `Access-Control-Allow-Headers` list in `src/lib/cors.ts`; without it the browser drops the header and identity linking silently stops |
 
 Implementation: `src/lib/cors.ts`, applied **per route**, never in
 middleware. `src/middleware.ts` matches every `/api/*` path, and a
@@ -140,6 +140,42 @@ genuinely matters for this endpoint, it needs a real credential, not a
 CORS header.
 
 ### Credentials
+
+## Identity binding on continuation-token first use
+
+The SDK sends its existing anonymous visitor id in the **`x-yali-visitor-id`
+header** — never the query string, because query strings land in server access
+logs, browser history, and `Referer` headers sent to third parties.
+
+On the **first** successful use of a token, and only when every guard passes,
+the server links that visitor's existing `identity_handles` row to the token's
+originating Contact at `strong` confidence, recording
+`continuation_token_first_use` evidence (both values come from the
+`identity_evidence_policy` allow-list, not from application code).
+
+Every guard is a **silent no-op, never an error**: first use only,
+`binds_identity` true, an origin contact exists, the visitor header is present,
+a matching handle exists **within the token's account**, the handle has no
+existing `contact_id`, and its confidence is neither `verified` nor `rejected`
+— both of which mean a human already decided.
+
+Two things this deliberately never does:
+
+- **It never creates a handle.** `POST /api/web-events` remains the sole owner
+  of visitor-handle creation. If the visitor has never hit that endpoint, there
+  is nothing to link and the resolve simply succeeds without binding.
+- **It never writes `timeline_events`.** The Contact Timeline reads through
+  `handle_id`, so one handle update surfaces that visitor's whole history —
+  past and future — with no backfill.
+
+The response is byte-identical whether or not a link happened, and no longer
+returns `origin_contact_id` or `origin_handle_id`. An anonymous caller cannot
+learn whether a handle exists, whether it was already linked, or why not.
+
+The confidence ceiling is `strong`, never `verified`: possession of a forwarded
+link is not proof of identity, and a shared device would otherwise bind the
+wrong person. `verified` stays reserved for an explicit human decision.
+
 
 `Access-Control-Allow-Credentials` is **not** sent, and the SDK sends no
 cookies (fetch's default `credentials: 'same-origin'`). These endpoints

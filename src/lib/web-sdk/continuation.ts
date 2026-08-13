@@ -16,6 +16,21 @@ import type { WebSdkOptions } from './events'
 
 const DEFAULT_PARAM_NAME = 'yali_ref'
 
+/**
+ * Header carrying the anonymous visitor id on the resolve call.
+ *
+ * A HEADER, not a query parameter, on purpose: query strings land in
+ * server access logs, browser history, and `Referer` headers sent to
+ * third parties. The visitor id is not PII, but it is a stable
+ * cross-visit identifier and does not belong in any of those.
+ *
+ * Exported so the route that reads it and the CORS allow-list that must
+ * permit it reference the same string — a rename would otherwise fail
+ * silently at the browser preflight, with the header simply never
+ * arriving and linking never happening.
+ */
+export const VISITOR_ID_HEADER = 'x-yali-visitor-id'
+
 export interface ReadContinuationRefOptions {
   /** Defaults to window.location.href when available. */
   url?: string
@@ -59,8 +74,10 @@ export function stripContinuationRefFromUrl(paramName: string = DEFAULT_PARAM_NA
 export interface ResolvedContinuationData {
   purpose: string
   originConversationId: string | null
-  originContactId: string | null
-  originHandleId: string | null
+  // originContactId / originHandleId are deliberately absent: the server
+  // no longer returns them. Identity binding happens server-side on
+  // first use, so an anonymous client has no reason to hold a CRM
+  // contact or handle id — and every reason not to.
   campaignId: string | null
   adId: string | null
   creativeId: string | null
@@ -78,6 +95,12 @@ export interface ResolveContinuationOptions
     ReadContinuationRefOptions {
   /** Strip the ref from the address bar after attempting resolution. Default true. */
   stripFromUrl?: boolean
+  /**
+   * The anonymous visitor id, sent in VISITOR_ID_HEADER so the server can
+   * bind this browser to the originating Contact on first use. Omit it
+   * and resolution still works — only the identity link is skipped.
+   */
+  visitorId?: string
 }
 
 /**
@@ -100,8 +123,15 @@ export async function resolveContinuationFromUrl(
   if (!fetchImpl) return { present: true, resolved: false }
 
   try {
+    // The visitor id rides in a header, never in the query string. When
+    // it is absent the server simply cannot link — a silent no-op, not
+    // an error — so resolution still succeeds for attribution.
+    const headers: Record<string, string> = {}
+    if (opts.visitorId) headers[VISITOR_ID_HEADER] = opts.visitorId
+
     const response = await fetchImpl(
-      `${opts.apiBaseUrl ?? ''}/api/continuation-tokens/resolve?ref=${encodeURIComponent(ref)}`
+      `${opts.apiBaseUrl ?? ''}/api/continuation-tokens/resolve?ref=${encodeURIComponent(ref)}`,
+      Object.keys(headers).length ? { headers } : undefined
     )
     if (!response.ok) return { present: true, resolved: false }
 
@@ -114,8 +144,6 @@ export async function resolveContinuationFromUrl(
       data: {
         purpose: body.purpose as string,
         originConversationId: (body.origin_conversation_id as string | null) ?? null,
-        originContactId: (body.origin_contact_id as string | null) ?? null,
-        originHandleId: (body.origin_handle_id as string | null) ?? null,
         campaignId: (body.campaign_id as string | null) ?? null,
         adId: (body.ad_id as string | null) ?? null,
         creativeId: (body.creative_id as string | null) ?? null,
