@@ -359,12 +359,17 @@
       "phoneRequired": "Phone number is required"
     },
     "detailView": {
+      "timelineTab": {
+        "emptyTitle": "No linked activity yet",
+        "emptyBody": "Activity appears here once it can be attributed to this contact. There may be website or channel activity that is not yet linked."
+      },
       "tabs": {
         "details": "Details",
         "activity": "Activity",
         "notes": "Notes",
         "custom": "Custom Fields",
         "deals": "Deals",
+        "timeline": "Timeline",
         "tags": "Tags",
       "noTags": "No tags",
       "noDeals": "No deals",

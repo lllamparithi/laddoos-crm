@@ -12,6 +12,14 @@ import {
   type TemplateSendValues,
 } from '@/components/inbox/template-picker';
 import {
+  TimelineFeed,
+  type TimelineFeedStatus,
+} from '@/components/dashboard/timeline-feed';
+import {
+  listTimelineEventsForContactViaHandles,
+  type TimelineEventRow,
+} from '@/lib/timeline/events';
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -97,6 +105,12 @@ export function ContactDetailView({
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
 
+  // Timeline tab — read-only. Resolves through the contact's linked identity
+  // handles, so nothing here writes or backfills timeline_events.
+  const [timelineStatus, setTimelineStatus] =
+    useState<TimelineFeedStatus>('loading');
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEventRow[]>([]);
+
   const fetchContact = useCallback(async () => {
     if (!contactId) return;
     setLoading(true);
@@ -180,6 +194,20 @@ export function ContactDetailView({
     setLoadingDeals(false);
   }, [contactId, supabase]);
 
+  const fetchTimeline = useCallback(async () => {
+    if (!contactId || !accountId) return;
+    setTimelineStatus('loading');
+    try {
+      setTimelineEvents(
+        await listTimelineEventsForContactViaHandles(supabase, accountId, contactId),
+      );
+      setTimelineStatus('ready');
+    } catch (error) {
+      console.error('[contact-detail] failed to load timeline:', error);
+      setTimelineStatus('error');
+    }
+  }, [contactId, accountId, supabase]);
+
   useEffect(() => {
     if (open && contactId) {
       fetchContact();
@@ -187,8 +215,9 @@ export function ContactDetailView({
       fetchNotes();
       fetchCustomFields();
       fetchDeals();
+      void fetchTimeline();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals]);
+  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchTimeline]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -482,6 +511,12 @@ export function ContactDetailView({
                 >
                   {t('tabs.deals')}
                 </TabsTrigger>
+                <TabsTrigger
+                  value="timeline"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  {t('tabs.timeline')}
+                </TabsTrigger>
               </TabsList>
 
               {/* Details Tab */}
@@ -743,6 +778,22 @@ export function ContactDetailView({
                     ))}
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Timeline tab — read-only view of activity reachable from
+                  this contact's linked identity handles, plus any event
+                  written against the contact directly. Renders nothing
+                  internal: no ids, handle hashes, visitor ids or payload
+                  refs — TimelineFeed shows only time, channel, source and
+                  the human summary. */}
+              <TabsContent value="timeline" className="flex-1 overflow-y-auto px-4 py-3">
+                <TimelineFeed
+                  status={timelineStatus}
+                  events={timelineEvents}
+                  onRetry={() => void fetchTimeline()}
+                  emptyTitle={t('timelineTab.emptyTitle')}
+                  emptyBody={t('timelineTab.emptyBody')}
+                />
               </TabsContent>
             </Tabs>
           </div>

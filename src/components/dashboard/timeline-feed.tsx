@@ -13,6 +13,14 @@ export interface TimelineFeedProps {
   status: TimelineFeedStatus
   events: TimelineEventRow[]
   onRetry: () => void
+  /**
+   * Empty-state copy. Defaults describe the account-wide /hub feed; the
+   * contact tab overrides them because "no activity" and "no activity we
+   * can attribute to this contact" are different claims, and only the
+   * second one is true there.
+   */
+  emptyTitle?: string
+  emptyBody?: string
 }
 
 /**
@@ -68,7 +76,13 @@ function FeedNotice({
  * page owns fetching and state, which keeps every branch here reachable
  * from a test without a database, a browser or a session.
  */
-export function TimelineFeed({ status, events, onRetry }: TimelineFeedProps) {
+export function TimelineFeed({
+  status,
+  events,
+  onRetry,
+  emptyTitle = 'No activity yet',
+  emptyBody = 'Website visits, chats and form submissions appear here as they happen. Nothing has been recorded for this account so far.',
+}: TimelineFeedProps) {
   if (status === 'loading') {
     return (
       <div className="rounded-xl border border-border bg-card px-5" aria-busy="true">
@@ -100,12 +114,7 @@ export function TimelineFeed({ status, events, onRetry }: TimelineFeedProps) {
   }
 
   if (events.length === 0) {
-    return (
-      <FeedNotice
-        title="No activity yet"
-        body="Website visits, chats and form submissions appear here as they happen. Nothing has been recorded for this account so far."
-      />
-    )
+    return <FeedNotice title={emptyTitle} body={emptyBody} />
   }
 
   return (
