@@ -99,15 +99,19 @@ async function handleResolve(request: Request): Promise<Response> {
       console.error('[continuation-tokens/resolve] identity link failed:', linkError)
     }
 
-    // origin_contact_id / origin_handle_id are NOT returned. The server
-    // performs the binding itself now, so an anonymous caller has no need
-    // for a CRM contact or handle id — and handing one out let anybody
-    // holding a valid ref read a real internal identifier. Same reasoning
-    // /api/web-events already applies by returning only { ok: true }.
+    // No CRM row identifiers are returned. origin_contact_id,
+    // origin_handle_id and origin_conversation_id are all internal ids
+    // (contacts.id, identity_handles.id, conversations.id) that anybody
+    // holding a valid ref could otherwise read; the server performs the
+    // identity binding itself, so no client needs any of them. Same
+    // reasoning /api/web-events already applies by returning { ok: true }.
+    //
+    // campaign/ad/creative stay: they are the caller's OWN marketing
+    // identifiers, supplied when the token was issued precisely so the
+    // destination page can attribute the visit. They are not CRM rows.
     return NextResponse.json({
       ok: true,
       purpose: result.token.purpose,
-      origin_conversation_id: result.token.originConversationId,
       campaign_id: result.token.campaignId,
       ad_id: result.token.adId,
       creative_id: result.token.creativeId,

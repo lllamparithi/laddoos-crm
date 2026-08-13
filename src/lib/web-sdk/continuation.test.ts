@@ -230,6 +230,40 @@ describe('resolveContinuationFromUrl', () => {
       expect(serialised).not.toContain('handle-SHOULD-NOT-SURFACE')
       expect(serialised).not.toContain('originContactId')
       expect(serialised).not.toContain('originHandleId')
+      // conversations.id is equally internal and unread by any caller.
+      expect(serialised).not.toContain('conv-1')
+      expect(serialised).not.toContain('originConversationId')
+    })
+
+    it('keeps the caller-owned attribution fields', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          purpose: 'ig_to_web',
+          campaign_id: 'camp-1',
+          ad_id: 'ad-1',
+          creative_id: 'cre-1',
+          binds_identity: true,
+          is_first_use: true,
+        }),
+      })
+      const outcome = await resolveContinuationFromUrl({
+        url: 'https://laddoos.com/x?yali_ref=v1.a.b',
+        fetchImpl,
+      })
+      expect(outcome).toMatchObject({
+        present: true,
+        resolved: true,
+        data: {
+          purpose: 'ig_to_web',
+          campaignId: 'camp-1',
+          adId: 'ad-1',
+          creativeId: 'cre-1',
+          bindsIdentity: true,
+          isFirstUse: true,
+        },
+      })
     })
   })
 

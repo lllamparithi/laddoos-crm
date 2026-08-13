@@ -73,11 +73,13 @@ export function stripContinuationRefFromUrl(paramName: string = DEFAULT_PARAM_NA
 
 export interface ResolvedContinuationData {
   purpose: string
-  originConversationId: string | null
-  // originContactId / originHandleId are deliberately absent: the server
-  // no longer returns them. Identity binding happens server-side on
-  // first use, so an anonymous client has no reason to hold a CRM
-  // contact or handle id — and every reason not to.
+  // No CRM row identifiers here. originContactId, originHandleId and
+  // originConversationId are deliberately absent — the server no longer
+  // returns any of them. Identity binding happens server-side on first
+  // use, so an anonymous client has no reason to hold a contacts,
+  // identity_handles or conversations id, and every reason not to.
+  // campaign/ad/creative remain: they are the caller's own marketing
+  // identifiers, not CRM rows.
   campaignId: string | null
   adId: string | null
   creativeId: string | null
@@ -143,7 +145,6 @@ export async function resolveContinuationFromUrl(
       resolved: true,
       data: {
         purpose: body.purpose as string,
-        originConversationId: (body.origin_conversation_id as string | null) ?? null,
         campaignId: (body.campaign_id as string | null) ?? null,
         adId: (body.ad_id as string | null) ?? null,
         creativeId: (body.creative_id as string | null) ?? null,

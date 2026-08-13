@@ -277,9 +277,12 @@ malformed, wrong signature, or wrong tenant are all the same outcome —
 this mirrors the server's own deliberate design
 (`docs/PHASE2_IDENTITY_RESOLUTION_ARCHITECTURE.md` §11–§12): distinguishing
 them would let a script probe which refs are "close" to valid.
-`data` never contains a token hash or the server's internal row id —
-only the fields the API route itself already scoped for public
-consumption.
+`data` contains **no CRM row identifiers at all** — not the token hash,
+not the server's internal row id, and not `origin_contact_id`,
+`origin_handle_id` or `origin_conversation_id`. Identity binding happens
+server-side on first use, so no client needs any of them. What remains is
+`purpose`, the caller's own marketing identifiers (`campaignId`, `adId`,
+`creativeId`), `bindsIdentity` and `isFirstUse`.
 
 ---
 
