@@ -17,13 +17,17 @@
 // are "close" to valid. token_hash never appears in any response.
 //
 // CORS: cross-origin callers on YALI_WEB_SDK_ALLOWED_ORIGINS are
-// supported. Unlike /api/web-events, the SDK's call here is a bare GET
-// with no custom headers — a "simple" request that does NOT preflight,
-// so this route needs only the response header, not the OPTIONS
-// handler. The OPTIONS handler exists anyway (one line) so the two
-// Phase 2A endpoints behave identically: the day someone adds a header
-// to this GET, it keeps working instead of failing at a preflight that
-// only one of the pair happened to implement.
+// supported. That anticipated day has arrived — this GET now carries the
+// visitor-id header, which makes it a non-simple request that DOES
+// preflight. The OPTIONS handler below was already here for exactly
+// this; the header is also on the Access-Control-Allow-Headers list in
+// src/lib/cors.ts, without which the browser would drop it silently and
+// identity linking would simply never happen.
+//
+// IDENTITY BINDING: on first use only, this route links the calling
+// browser's existing visitor handle to the token's originating Contact.
+// See src/lib/identity/link-visitor.ts for the guards. Nothing about
+// whether that succeeded is observable in the response.
 // ============================================================
 
 import { NextResponse } from 'next/server'
@@ -36,6 +40,8 @@ import {
 } from '@/lib/identity/workspace-context'
 import { resolveContinuationToken, ContinuationServiceError } from '@/lib/continuation/service'
 import { withCors, preflightResponse } from '@/lib/cors'
+import { linkVisitorOnFirstUse } from '@/lib/identity/link-visitor'
+import { VISITOR_ID_HEADER } from '@/lib/web-sdk/continuation'
 
 function getClientIp(request: Request): string {
   const xff = request.headers.get('x-forwarded-for')
@@ -70,17 +76,42 @@ async function handleResolve(request: Request): Promise<Response> {
 
   try {
     const db = supabaseAdmin()
-    const { tenantId, brandId } = await resolveSingleAccountWorkspaceContext(db)
+    const { accountId, tenantId, brandId } = await resolveSingleAccountWorkspaceContext(db)
 
     const result = await resolveContinuationToken(db, ref, tenantId, brandId)
     if (!result.ok || !result.token) return NOT_OK_RESPONSE()
 
+    // Identity binding, first use only. Every rejection inside is a silent
+    // no-op returning an outcome we deliberately DISCARD: surfacing it —
+    // even as a boolean — would tell an anonymous caller whether a handle
+    // exists or was already linked, which is exactly the oracle this
+    // endpoint's uniform-response rule exists to prevent. A failure here
+    // must never fail the resolve either, so it is caught separately.
+    try {
+      await linkVisitorOnFirstUse(db, {
+        accountId,
+        originContactId: result.token.originContactId,
+        bindsIdentity: result.token.bindsIdentity,
+        isFirstUse: result.token.isFirstUse,
+        visitorId: request.headers.get(VISITOR_ID_HEADER),
+      })
+    } catch (linkError) {
+      console.error('[continuation-tokens/resolve] identity link failed:', linkError)
+    }
+
+    // No CRM row identifiers are returned. origin_contact_id,
+    // origin_handle_id and origin_conversation_id are all internal ids
+    // (contacts.id, identity_handles.id, conversations.id) that anybody
+    // holding a valid ref could otherwise read; the server performs the
+    // identity binding itself, so no client needs any of them. Same
+    // reasoning /api/web-events already applies by returning { ok: true }.
+    //
+    // campaign/ad/creative stay: they are the caller's OWN marketing
+    // identifiers, supplied when the token was issued precisely so the
+    // destination page can attribute the visit. They are not CRM rows.
     return NextResponse.json({
       ok: true,
       purpose: result.token.purpose,
-      origin_conversation_id: result.token.originConversationId,
-      origin_contact_id: result.token.originContactId,
-      origin_handle_id: result.token.originHandleId,
       campaign_id: result.token.campaignId,
       ad_id: result.token.adId,
       creative_id: result.token.creativeId,

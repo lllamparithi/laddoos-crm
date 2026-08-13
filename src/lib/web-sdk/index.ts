@@ -51,7 +51,14 @@ export function initYaliWebSdk(config: YaliWebSdkConfig = {}): YaliWebSdk {
     trackPageView: (input) => trackPageView(input, baseOpts),
     trackProductView: (input) => trackProductView(input, baseOpts),
     trackCtaClick,
+    // The visitor id is supplied here rather than left to the caller, so
+    // the identity link works by default. An explicit override still
+    // wins; passing visitorId: undefined opts out of binding entirely.
     resolveContinuationFromUrl: (overrides = {}) =>
-      resolveContinuationFromUrl({ ...baseOpts, ...overrides }),
+      resolveContinuationFromUrl({
+        ...baseOpts,
+        visitorId: getOrCreateVisitorId(),
+        ...overrides,
+      }),
   }
 }

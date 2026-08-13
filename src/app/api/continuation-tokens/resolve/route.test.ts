@@ -5,6 +5,11 @@ const mocks = vi.hoisted(() => ({
   supabaseAdmin: vi.fn(() => ({ name: 'admin-client' })),
   resolveSingleAccountWorkspaceContext: vi.fn(),
   resolveContinuationToken: vi.fn(),
+  linkVisitorOnFirstUse: vi.fn(async () => 'linked'),
+}))
+
+vi.mock('@/lib/identity/link-visitor', () => ({
+  linkVisitorOnFirstUse: mocks.linkVisitorOnFirstUse,
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: mocks.supabaseAdmin }))
@@ -46,6 +51,8 @@ beforeEach(() => {
   __resetRateLimitForTests()
   mocks.resolveSingleAccountWorkspaceContext.mockReset()
   mocks.resolveContinuationToken.mockReset()
+  mocks.linkVisitorOnFirstUse.mockReset()
+  mocks.linkVisitorOnFirstUse.mockResolvedValue('linked')
   mocks.resolveSingleAccountWorkspaceContext.mockResolvedValue({
     accountId: 'account-1',
     tenantId: 'tenant-1',
@@ -95,6 +102,117 @@ describe('GET /api/continuation-tokens/resolve', () => {
     expect(body.campaign_id).toBe('camp-1')
     expect(body.token_hash).toBeUndefined()
     expect(body.id).toBeUndefined() // internal row id is not exposed either
+  })
+
+  describe('identity binding on first use', () => {
+    const okToken = (over: Record<string, unknown> = {}) => ({
+      ok: true,
+      token: {
+        id: 'token-1',
+        purpose: 'ig_to_web',
+        originChannel: 'instagram',
+        originConversationId: 'conv-1',
+        originContactId: 'contact-1',
+        originHandleId: 'handle-1',
+        campaignId: null,
+        adId: null,
+        creativeId: null,
+        bindsIdentity: true,
+        isFirstUse: true,
+        ...over,
+      },
+    })
+
+    it('never returns any CRM row identifier', async () => {
+      mocks.resolveContinuationToken.mockResolvedValue(okToken())
+      const response = await GET(request('?ref=v1.good.ref'))
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.origin_contact_id).toBeUndefined()
+      expect(body.origin_handle_id).toBeUndefined()
+      // conversations.id is just as internal as the other two, and no
+      // client reads it — see the privacy review on PR #14.
+      expect(body.origin_conversation_id).toBeUndefined()
+      // Belt and braces: the ids must not appear anywhere in the payload.
+      const serialised = JSON.stringify(body)
+      expect(serialised).not.toContain('contact-1')
+      expect(serialised).not.toContain('handle-1')
+      expect(serialised).not.toContain('conv-1')
+    })
+
+    it('still returns the caller-owned attribution fields', async () => {
+      mocks.resolveContinuationToken.mockResolvedValue(
+        okToken({ campaignId: 'camp-1', adId: 'ad-1', creativeId: 'cre-1' }),
+      )
+      const body = await (await GET(request('?ref=v1.good.ref'))).json()
+
+      // campaign/ad/creative are the caller's own marketing identifiers,
+      // not CRM rows — removing them would break attribution.
+      expect(body.campaign_id).toBe('camp-1')
+      expect(body.ad_id).toBe('ad-1')
+      expect(body.creative_id).toBe('cre-1')
+      expect(body.purpose).toBe('ig_to_web')
+      expect(body.binds_identity).toBe(true)
+      expect(body.is_first_use).toBe(true)
+    })
+
+    it('passes the token account and the header visitor id to the linker', async () => {
+      mocks.resolveContinuationToken.mockResolvedValue(okToken())
+      const req = new Request('http://localhost/api/continuation-tokens/resolve?ref=v1.good.ref', {
+        headers: { 'x-forwarded-for': '203.0.113.7', 'x-yali-visitor-id': 'visitor-abc' },
+      })
+      await GET(req)
+
+      expect(mocks.linkVisitorOnFirstUse).toHaveBeenCalledWith(expect.anything(), {
+        accountId: 'account-1',
+        originContactId: 'contact-1',
+        bindsIdentity: true,
+        isFirstUse: true,
+        visitorId: 'visitor-abc',
+      })
+    })
+
+    it('passes a null visitor id when the header is absent', async () => {
+      mocks.resolveContinuationToken.mockResolvedValue(okToken())
+      await GET(request('?ref=v1.good.ref'))
+      expect(mocks.linkVisitorOnFirstUse).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ visitorId: null }),
+      )
+    })
+
+    it('does not attempt linking when the token is invalid', async () => {
+      mocks.resolveContinuationToken.mockResolvedValue({ ok: false })
+      const response = await GET(request('?ref=v1.bad.ref'))
+      expect(response.status).toBe(404)
+      expect(mocks.linkVisitorOnFirstUse).not.toHaveBeenCalled()
+    })
+
+    it('still returns 200 when linking throws — resolve must not fail', async () => {
+      mocks.resolveContinuationToken.mockResolvedValue(okToken())
+      mocks.linkVisitorOnFirstUse.mockRejectedValue(new Error('db down'))
+
+      const response = await GET(request('?ref=v1.good.ref'))
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.ok).toBe(true)
+    })
+
+    it('response is byte-identical whether or not a link happened', async () => {
+      mocks.resolveContinuationToken.mockResolvedValue(okToken())
+
+      mocks.linkVisitorOnFirstUse.mockResolvedValue('linked')
+      const linked = await (await GET(request('?ref=v1.good.ref'))).json()
+
+      __resetRateLimitForTests()
+      mocks.linkVisitorOnFirstUse.mockResolvedValue('already_linked')
+      const notLinked = await (await GET(request('?ref=v1.good.ref'))).json()
+
+      // An anonymous caller must not be able to infer the link outcome.
+      expect(linked).toEqual(notLinked)
+    })
   })
 
   it('rejects after the per-IP rate limit is exhausted', async () => {

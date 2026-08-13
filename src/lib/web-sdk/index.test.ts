@@ -32,9 +32,16 @@ describe('initYaliWebSdk', () => {
     const result = await sdk.resolveContinuationFromUrl({ url: 'https://laddoos.com/?yali_ref=v1.a.b' })
 
     expect(result).toEqual({ present: true, resolved: false })
-    expect(fetchImpl).toHaveBeenCalledWith(
-      expect.stringContaining('https://admin.laddoosdotcom.in/api/continuation-tokens/resolve')
-    )
+    const [url, init] = fetchImpl.mock.calls[0]
+    expect(url).toContain('https://admin.laddoosdotcom.in/api/continuation-tokens/resolve')
+    // The SDK supplies the visitor id by default so linking works without
+    // the integrator having to know about it — in the header, not the URL.
+    const sentHeaders = (init as RequestInit | undefined)?.headers as
+      | Record<string, string>
+      | undefined
+    expect(sentHeaders?.['x-yali-visitor-id']).toBeTruthy()
+    expect(url).not.toContain('x-yali-visitor-id')
+    expect(url).not.toContain(sentHeaders?.['x-yali-visitor-id'] ?? '__never__')
   })
 
   it('exposes trackCtaClick as the same documented stub', async () => {

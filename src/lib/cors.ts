@@ -48,6 +48,8 @@
 // this comment.
 // ============================================================
 
+import { VISITOR_ID_HEADER } from '@/lib/web-sdk/continuation'
+
 const ENV_VAR = 'YALI_WEB_SDK_ALLOWED_ORIGINS'
 
 /**
@@ -141,7 +143,12 @@ export function preflightResponse(request: Request, methods: string): Response {
       Vary: 'Origin',
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': `${methods}, OPTIONS`,
-      'Access-Control-Allow-Headers': 'Content-Type',
+      // Content-Type for /api/web-events' JSON POST, and the visitor-id
+      // header the continuation-resolve GET now carries. Imported rather
+      // than written literally: a rename that missed this list would fail
+      // ONLY at the browser preflight, where the header is silently
+      // dropped and identity linking quietly stops happening.
+      'Access-Control-Allow-Headers': `Content-Type, ${VISITOR_ID_HEADER}`,
       'Access-Control-Max-Age': String(MAX_AGE_SECONDS),
     },
   })
