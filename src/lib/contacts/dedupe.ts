@@ -76,6 +76,40 @@ export function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
+ * Whether the contact form's submit button should be disabled.
+ *
+ * `checkingDup` is accepted but **deliberately ignored**. The phone
+ * input runs the duplicate lookup on blur, and clicking Create while
+ * that field still has focus fires the blur first — so gating the
+ * button on the in-flight lookup disabled it during the very click
+ * that started it. The click landed on a disabled button, the form's
+ * submit handler never ran, and the create failed silently with no
+ * insert and no error toast.
+ *
+ * Dropping the in-flight gate is safe because the duplicate protection
+ * is layered, and the authoritative layer is the database. The submit
+ * handler reads whatever `dupMatch` state it currently holds — it does
+ * not re-run the lookup, so a submit that races an in-flight blur check
+ * can pass that guard with stale or absent state. The unique constraint
+ * on the generated `phone_normalized` column (migration 022) is what
+ * actually settles the race; `isUniqueViolation` turns its rejection
+ * into the same friendly duplicate notice. The lookup is an early
+ * heads-up, not the guard.
+ *
+ * The parameter stays in the signature so the caller keeps passing the
+ * real value and this stays a single pinned decision rather than a
+ * silently deleted token — see the regression test in dedupe.test.ts.
+ */
+export function isContactSubmitDisabled(state: {
+  saving: boolean;
+  checkingDup: boolean;
+  isEdit: boolean;
+  dupMatch: { exact: boolean } | null;
+}): boolean {
+  return state.saving || (!state.isEdit && !!state.dupMatch?.exact);
+}
+
+/**
  * De-duplicate parsed CSV rows by normalized phone, keeping the first
  * occurrence of each. Rows with an empty normalized phone are dropped
  * (they can't be a valid contact). Returns the unique rows plus the
