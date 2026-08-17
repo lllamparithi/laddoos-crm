@@ -4,6 +4,7 @@ import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 import {
   dedupeByPhone,
   findExistingContact,
+  isContactSubmitDisabled,
   isExactMatch,
   isUniqueViolation,
   normalizeKey,
@@ -32,6 +33,60 @@ describe("isExactMatch", () => {
     expect(isExactMatch({ id: "1", phone: "37063949836" }, "370063949836")).toBe(
       false,
     );
+  });
+});
+
+describe("isContactSubmitDisabled", () => {
+  const base = {
+    saving: false,
+    checkingDup: false,
+    isEdit: false,
+    dupMatch: null,
+  };
+
+  // The regression. The phone input runs the duplicate lookup on blur,
+  // so clicking Create straight from that field fires blur first and
+  // `checkingDup` is true at the moment the click lands. Gating the
+  // button on it disabled the button mid-click: no submit handler, no
+  // insert, no error toast, modal just sat there.
+  it("stays enabled while the on-blur duplicate lookup is still in flight", () => {
+    expect(isContactSubmitDisabled({ ...base, checkingDup: true })).toBe(false);
+  });
+
+  it("stays enabled mid-lookup even when a fuzzy match is already showing", () => {
+    expect(
+      isContactSubmitDisabled({
+        ...base,
+        checkingDup: true,
+        dupMatch: { exact: false },
+      }),
+    ).toBe(false);
+  });
+
+  it("blocks an exact duplicate on create", () => {
+    expect(
+      isContactSubmitDisabled({ ...base, dupMatch: { exact: true } }),
+    ).toBe(true);
+  });
+
+  it("allows a fuzzy trunk-variant match through (warn only)", () => {
+    expect(
+      isContactSubmitDisabled({ ...base, dupMatch: { exact: false } }),
+    ).toBe(false);
+  });
+
+  it("does not block an exact match when editing that same contact", () => {
+    expect(
+      isContactSubmitDisabled({
+        ...base,
+        isEdit: true,
+        dupMatch: { exact: true },
+      }),
+    ).toBe(false);
+  });
+
+  it("blocks while an insert is already saving", () => {
+    expect(isContactSubmitDisabled({ ...base, saving: true })).toBe(true);
   });
 });
 

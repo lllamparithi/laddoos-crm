@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import {
   findExistingContact,
+  isContactSubmitDisabled,
   isExactMatch,
   isUniqueViolation,
   type ExistingContact,
@@ -373,7 +374,12 @@ export function ContactForm({
             </Button>
             <Button
               type="submit"
-              disabled={saving || checkingDup || (!isEdit && !!dupMatch?.exact)}
+              disabled={isContactSubmitDisabled({
+                saving,
+                checkingDup,
+                isEdit,
+                dupMatch,
+              })}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saving && <Loader2 className="size-4 animate-spin" />}
