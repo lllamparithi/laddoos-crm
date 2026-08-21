@@ -1,21 +1,43 @@
 /**
- * Deployment configuration contract for a single-tenant YALI Omni
- * deployment (one customer, one database, one credential set).
+ * Typed deployment configuration validation utility for a single-tenant
+ * YALI Omni deployment (one customer, one database, one credential set).
  *
- * Why this exists: the same core image is deployed per customer, so a
- * misconfigured deployment must fail loudly and immediately rather than
- * surfacing later as a confusing runtime error. `.env.local`'s
+ * ── Status: foundation, not yet wired ───────────────────────────
+ * This module has **no production caller**. It does not currently run at
+ * startup and does not, by itself, make any deployment fail. It is the
+ * validation primitive that future callers opt into — a boot check, a
+ * readiness probe or an integration slice can call `loadDeploymentConfig()`
+ * to fail fast on a misconfigured deployment. Until something calls it, its
+ * only effect is on code that chooses to use it.
+ *
+ * Why it exists: the same core image is deployed per customer, so the same
+ * misconfiguration will recur per deployment. `.env.local`'s
  * `NEXT_PUBLIC_SUPABASE_URL` shipping as an unconfigured placeholder has
  * already cost debugging time — a present-but-empty value is exactly as
  * broken as an absent one, so both are treated as missing here.
  *
- * ── Secret safety ────────────────────────────────────────────────
- * Validation reports **key names only, never values**. `DeploymentConfigError`
- * carries `missingKeys`; nothing in this module puts a value into a message.
- * The returned object also defines `toJSON()` so an accidental
- * `JSON.stringify(config)` or structured-log call emits key names instead of
- * credentials. That is deliberate: the object holds real secrets and is
- * server-only.
+ * ── Secret safety, stated precisely ─────────────────────────────
+ * Two properties hold, and only these two:
+ *
+ *   1. Validation failures name **keys, never values**. `DeploymentConfigError`
+ *      carries `missingKeys`; no value reaches a message or stack.
+ *   2. `toJSON()` redacts values **during JSON serialisation only** — that
+ *      covers `JSON.stringify(config)` and loggers that serialise to JSON.
+ *
+ * It does **not** make this object safe to log generally. `console.log(config)`
+ * in Node uses `util.inspect`, which ignores `toJSON()` and would print every
+ * value. Anything that reads a property directly, spreads the object, or
+ * inspects it will see real credentials. This object holds the service-role
+ * key: normal secret-safe discipline still applies at every call site.
+ *
+ * ── Server-only boundary ────────────────────────────────────────
+ * The runtime guard below throws if this module is ever evaluated in a
+ * browser. It is a **runtime** check, not a build-time one: it prevents
+ * execution in client code, not bundling into it. A build-time boundary
+ * would need the `server-only` package, which is not a dependency of this
+ * repo — adding it is a separate decision, not part of this slice.
+ * (`src/lib/auth/account.ts` gets its boundary for free by transitively
+ * importing `next/headers`; this module imports nothing, so it has none.)
  *
  * ── Deliberately additive ───────────────────────────────────────
  * This does NOT centralise the ~15 existing `process.env` reads across the
@@ -29,6 +51,12 @@
  * a deployment without WhatsApp configured should still boot and report
  * its real problem.
  */
+
+if (typeof window !== 'undefined') {
+  throw new Error(
+    'src/lib/config/deployment.ts is server-only and must not run in the browser.',
+  )
+}
 
 /**
  * Variables without which no request can be served. All four are read at
@@ -45,7 +73,7 @@ export const REQUIRED_DEPLOYMENT_KEYS = [
 export type RequiredDeploymentKey = (typeof REQUIRED_DEPLOYMENT_KEYS)[number]
 
 export type DeploymentConfig = Readonly<Record<RequiredDeploymentKey, string>> & {
-  /** Redacts values — see "Secret safety" above. */
+  /** Redacts values on JSON serialisation only — see "Secret safety" above. */
   toJSON(): { configuredKeys: readonly string[] }
 }
 

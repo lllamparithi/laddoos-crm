@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   DeploymentConfigError,
@@ -107,7 +107,10 @@ describe('secret safety', () => {
     }
   })
 
-  it('redacts values when serialised', () => {
+  // Scope note: toJSON covers JSON serialisation only. util.inspect
+  // (console.log) ignores it, so this is NOT a general logging guard —
+  // see the module header.
+  it('redacts values during JSON serialisation', () => {
     const config = loadDeploymentConfig(
       validEnv({ ENCRYPTION_KEY: 'super-secret-do-not-log' }),
     )
@@ -116,5 +119,32 @@ describe('secret safety', () => {
     expect(JSON.parse(serialised)).toEqual({
       configuredKeys: [...REQUIRED_DEPLOYMENT_KEYS],
     })
+  })
+
+  it('does not redact on direct property access — discipline still required', () => {
+    const config = loadDeploymentConfig(
+      validEnv({ ENCRYPTION_KEY: 'super-secret-do-not-log' }),
+    )
+    // Documents the real boundary of toJSON: reading a property still
+    // yields the credential, by design.
+    expect(config.ENCRYPTION_KEY).toBe('super-secret-do-not-log')
+  })
+})
+
+describe('server-only boundary', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  })
+
+  it('throws if the module is evaluated in a browser', async () => {
+    vi.stubGlobal('window', {})
+    vi.resetModules()
+    await expect(import('./deployment')).rejects.toThrow(/server-only/)
+  })
+
+  it('imports cleanly in a server runtime', async () => {
+    vi.resetModules()
+    await expect(import('./deployment')).resolves.toBeDefined()
   })
 })
