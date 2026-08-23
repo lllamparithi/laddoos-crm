@@ -24,6 +24,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'trigger_type required' }, { status: 400 })
   }
 
+  // `conversation_assigned` is not dispatchable through this generic
+  // entrypoint. This route takes the trigger type, contact and context
+  // verbatim from the caller, which is fine for a manual test fire but
+  // would let an authenticated agent forge an assignment event —
+  // running real automation actions against an arbitrary contact with
+  // no assignment behind it. That trigger is owned by
+  // POST /api/conversations/[id]/assign, which derives every field from
+  // stored rows after persisting a real change.
+  if (body.trigger_type === 'conversation_assigned') {
+    return NextResponse.json(
+      {
+        error:
+          'conversation_assigned cannot be fired here; use POST /api/conversations/[id]/assign',
+      },
+      { status: 400 },
+    )
+  }
+
   await runAutomationsForTrigger({
     accountId,
     triggerType: body.trigger_type as AutomationTriggerType,
