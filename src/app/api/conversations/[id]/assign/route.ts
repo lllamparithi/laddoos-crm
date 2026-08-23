@@ -52,7 +52,25 @@ export async function POST(request: Request, { params }: Params) {
         { status: 400 },
       )
     }
-    const nextAgentId = (requested as string | null) || null
+
+    // Only a literal JSON `null` may unassign. An empty or whitespace-only
+    // string is malformed input, not an intent to unassign — coercing it
+    // with `|| null` silently released the conversation, so a truncated or
+    // mis-serialised client field would quietly drop the assignee instead
+    // of failing loudly.
+    let nextAgentId: string | null
+    if (requested === null) {
+      nextAgentId = null
+    } else {
+      const trimmed = requested.trim()
+      if (!trimmed) {
+        return NextResponse.json(
+          { error: 'agent_id must be a non-empty string, or null to unassign' },
+          { status: 400 },
+        )
+      }
+      nextAgentId = trimmed
+    }
 
     // Canonical current state. Everything downstream derives from this
     // row, never from the request body.

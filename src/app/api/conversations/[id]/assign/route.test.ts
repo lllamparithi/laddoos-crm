@@ -200,6 +200,61 @@ describe('POST /api/conversations/[id]/assign — behaviour', () => {
     spy.mockRestore()
   })
 
+  // Regression: `|| null` coerced "" to null, so malformed input silently
+  // unassigned the conversation. Only a literal JSON null may unassign.
+  describe('empty and whitespace agent_id', () => {
+    it.each([
+      ['empty string', ''],
+      ['single space', ' '],
+      ['tab and newline', String.fromCharCode(9, 10)],
+      ['multiple spaces', '   '],
+    ])('rejects %s without updating or dispatching', async (_label, value) => {
+      const { supabase, updates } = makeSupabase({
+        conversation: {
+          id: CONVERSATION,
+          assigned_agent_id: AGENT,
+          contact_id: STORED_CONTACT,
+        },
+      })
+      mocks.requireRole.mockResolvedValue({ supabase, accountId: ACCOUNT })
+
+      const res = await POST(req({ agent_id: value }), params)
+
+      expect(res.status).toBe(400)
+      // The conversation stays assigned — no silent release.
+      expect(updates).toHaveLength(0)
+      expect(mocks.runAutomations).not.toHaveBeenCalled()
+    })
+
+    it('still accepts a literal null as an explicit unassign', async () => {
+      const { supabase, updates } = makeSupabase({
+        conversation: {
+          id: CONVERSATION,
+          assigned_agent_id: AGENT,
+          contact_id: STORED_CONTACT,
+        },
+      })
+      mocks.requireRole.mockResolvedValue({ supabase, accountId: ACCOUNT })
+
+      const res = await POST(req({ agent_id: null }), params)
+
+      expect(res.status).toBe(200)
+      expect(updates).toEqual([{ assigned_agent_id: null }])
+      expect(mocks.runAutomations).not.toHaveBeenCalled()
+    })
+
+    it('trims a padded agent id rather than rejecting it', async () => {
+      const { supabase, updates } = makeSupabase({})
+      mocks.requireRole.mockResolvedValue({ supabase, accountId: ACCOUNT })
+
+      const res = await POST(req({ agent_id: `  ${AGENT}  ` }), params)
+
+      expect(res.status).toBe(200)
+      expect(updates).toEqual([{ assigned_agent_id: AGENT }])
+      expect(mocks.runAutomations.mock.calls[0][0].context.agent_id).toBe(AGENT)
+    })
+  })
+
   it('rejects a malformed body', async () => {
     const { supabase } = makeSupabase({})
     mocks.requireRole.mockResolvedValue({ supabase, accountId: ACCOUNT })
