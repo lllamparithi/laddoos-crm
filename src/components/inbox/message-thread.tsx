@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { shouldDispatchConversationAssigned } from "@/lib/automations/dispatch-assignment";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/use-presence";
@@ -834,6 +835,38 @@ export function MessageThread({
       }
 
       onAssignChange(conversation.id, agentId);
+
+      // Fire `conversation_assigned` for a real manual assignment. The
+      // decision comes from the shared helper so client and server agree;
+      // the dispatch itself goes through the existing agent-authenticated
+      // /api/automations/engine route, because runAutomationsForTrigger
+      // uses the service-role client and cannot run in the browser.
+      //
+      // Deliberately not awaited and never surfaced to the user: the
+      // assignment has already committed, so a failing automation must not
+      // make a successful assignment look broken.
+      if (
+        shouldDispatchConversationAssigned({
+          previousAgentId: conversation.assigned_agent_id ?? null,
+          nextAgentId: agentId,
+          origin: "manual",
+        })
+      ) {
+        void fetch("/api/automations/engine", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            trigger_type: "conversation_assigned",
+            contact_id: conversation.contact_id ?? null,
+            context: {
+              conversation_id: conversation.id,
+              agent_id: agentId,
+            },
+          }),
+        }).catch((err) =>
+          console.error("[conversation_assigned] dispatch failed:", err),
+        );
+      }
     },
     [conversation, onAssignChange],
   );

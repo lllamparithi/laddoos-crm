@@ -138,7 +138,7 @@ export async function dispatchInboundToAiReply(
       // (sticky until re-enabled), (b) route the conversation to the
       // configured handoff agent — null leaves it in the shared queue —
       // and (c) leave a short internal note so whoever picks it up has
-      // context. Assigning fires the `on_conversation_assigned` trigger,
+      // context. Assigning fires the `conversation_assigned` trigger,
       // which notifies the agent.
       const summary = buildHandoffSummary({
         messages,
