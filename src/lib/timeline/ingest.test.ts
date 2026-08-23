@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AnySupabaseClient } from '@/lib/supabase/any-client'
 
-import { TimelineIngestError, recordWebEvent, recordInstagramMessageEvent } from './ingest'
+import {
+  TimelineIngestError,
+  recordWebEvent,
+  recordInstagramMessageEvent,
+  recordMessengerMessageEvent,
+} from './ingest'
 
 const tenancy = { accountId: 'acct-1', tenantId: 'tenant-1', brandId: 'brand-1' }
 
@@ -122,6 +127,102 @@ describe('recordInstagramMessageEvent', () => {
       source: 'bot',
     })
     expect(inserts[0].source).toBe('bot')
+  })
+})
+
+describe('recordMessengerMessageEvent', () => {
+  const occurredAt = new Date('2026-01-01T00:00:00.000Z')
+
+  it('maps inbound to message.inbound on the messenger channel', async () => {
+    const { db, inserts } = captureDb()
+    await recordMessengerMessageEvent(db, {
+      ...tenancy,
+      direction: 'inbound',
+      messengerMessageId: 'mid-1',
+      summary: 'Is the almond laddoo box available?',
+      occurredAt,
+    })
+    expect(inserts[0].event_type).toBe('message.inbound')
+    expect(inserts[0].channel).toBe('messenger')
+    expect(inserts[0].source).toBe('meta_webhook')
+    expect(inserts[0].dedupe_key).toBe('messenger:mid-1')
+  })
+
+  it('maps outbound to message.outbound with agent as the default source', async () => {
+    const { db, inserts } = captureDb()
+    await recordMessengerMessageEvent(db, {
+      ...tenancy,
+      direction: 'outbound',
+      messengerMessageId: 'mid-2',
+      summary: 'Yes, in stock.',
+      occurredAt,
+    })
+    expect(inserts[0].event_type).toBe('message.outbound')
+    expect(inserts[0].source).toBe('agent')
+  })
+
+  it('namespaces the dedupe key so an Instagram and Messenger mid never collide', async () => {
+    const { db: igDb, inserts: igInserts } = captureDb()
+    const { db: fbDb, inserts: fbInserts } = captureDb()
+
+    await recordInstagramMessageEvent(igDb, {
+      ...tenancy,
+      direction: 'inbound',
+      igMessageId: 'same-id',
+      summary: 'from instagram',
+    })
+    await recordMessengerMessageEvent(fbDb, {
+      ...tenancy,
+      direction: 'inbound',
+      messengerMessageId: 'same-id',
+      summary: 'from messenger',
+      occurredAt,
+    })
+
+    expect(igInserts[0].dedupe_key).toBe('ig:same-id')
+    expect(fbInserts[0].dedupe_key).toBe('messenger:same-id')
+    expect(igInserts[0].dedupe_key).not.toBe(fbInserts[0].dedupe_key)
+  })
+
+  it('writes the caller-supplied occurred_at verbatim, so a replay collides', async () => {
+    const { db, inserts } = captureDb()
+    await recordMessengerMessageEvent(db, {
+      ...tenancy,
+      direction: 'inbound',
+      messengerMessageId: 'mid-3',
+      summary: 'hello',
+      occurredAt,
+    })
+    expect(inserts[0].occurred_at).toBe(occurredAt.toISOString())
+  })
+
+  it('records the messenger message id in payload_ref', async () => {
+    const { db, inserts } = captureDb()
+    await recordMessengerMessageEvent(db, {
+      ...tenancy,
+      direction: 'inbound',
+      messengerMessageId: 'mid-4',
+      summary: 'hello',
+      occurredAt,
+      payloadRef: { messenger_sender_id: 'psid-1' },
+    })
+    expect(inserts[0].payload_ref).toEqual({
+      messenger_sender_id: 'psid-1',
+      messenger_message_id: 'mid-4',
+    })
+  })
+
+  it('never sets contact_id or conversation_id when the caller omits them', async () => {
+    const { db, inserts } = captureDb()
+    await recordMessengerMessageEvent(db, {
+      ...tenancy,
+      direction: 'inbound',
+      messengerMessageId: 'mid-5',
+      summary: 'hello',
+      occurredAt,
+    })
+    expect(inserts[0].contact_id).toBeNull()
+    expect(inserts[0].conversation_id).toBeNull()
   })
 })
 

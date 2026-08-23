@@ -1,12 +1,11 @@
 // ============================================================
-// Channel ingestion helpers — Phase 2A: web and Instagram only.
+// Channel ingestion helpers — web, Instagram and Messenger.
 //
 // Each function here knows one channel's dedupe_key convention (see
 // docs/PHASE2_UNIFIED_TIMELINE_SPEC.md §6) and event_type choices, and
-// delegates the actual write to recordTimelineEvent(). Phase 2B/2C add
-// their own sibling functions (WhatsApp, voice) in their own files when
-// those channels exist — this file is deliberately scoped to what
-// Phase 2A (Instagram -> Website -> Timeline) writes.
+// delegates the actual write to recordTimelineEvent(). Phase 2C adds
+// its own sibling function (voice) when that channel exists — this file
+// stays scoped to the channels that actually write today.
 // ============================================================
 
 import type { AnySupabaseClient } from '@/lib/supabase/any-client'
@@ -150,6 +149,55 @@ export async function recordInstagramMessageEvent(
     contactId: input.contactId,
     conversationId: input.conversationId,
     payloadRef: { ...(input.payloadRef ?? {}), ig_message_id: input.igMessageId },
+    confidence: input.confidence,
+  })
+}
+
+// ── Messenger ────────────────────────────────────────────────
+
+export interface RecordMessengerMessageEventInput extends TenancyContext {
+  direction: 'inbound' | 'outbound'
+  /** Meta's own message id — the dedupe key source (messenger:<mid>). */
+  messengerMessageId: string
+  summary: string
+  handleId?: string | null
+  contactId?: string | null
+  conversationId?: string | null
+  /** Defaults to 'meta_webhook' for inbound, 'agent' for outbound. */
+  source?: string
+  payloadRef?: Record<string, unknown>
+  confidence?: TimelineConfidence
+  /**
+   * Required, unlike the Instagram sibling. dedupe_key alone is not the
+   * idempotency key — the constraint is (account_id, dedupe_key,
+   * occurred_at) — so defaulting to now() would let a replayed webhook
+   * land a second row under the same key at a different timestamp. The
+   * Messenger caller derives this from the payload, never the clock.
+   */
+  occurredAt: Date
+}
+
+export async function recordMessengerMessageEvent(
+  db: AnySupabaseClient,
+  input: RecordMessengerMessageEventInput
+): Promise<TimelineEventRow> {
+  return recordTimelineEvent(db, {
+    accountId: input.accountId,
+    tenantId: input.tenantId,
+    brandId: input.brandId,
+    eventType: input.direction === 'inbound' ? 'message.inbound' : 'message.outbound',
+    channel: 'messenger',
+    source: input.source ?? (input.direction === 'inbound' ? 'meta_webhook' : 'agent'),
+    summary: input.summary,
+    dedupeKey: `messenger:${input.messengerMessageId}`,
+    occurredAt: input.occurredAt,
+    handleId: input.handleId,
+    contactId: input.contactId,
+    conversationId: input.conversationId,
+    payloadRef: {
+      ...(input.payloadRef ?? {}),
+      messenger_message_id: input.messengerMessageId,
+    },
     confidence: input.confidence,
   })
 }
