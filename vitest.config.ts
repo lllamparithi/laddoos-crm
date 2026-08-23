@@ -15,6 +15,11 @@ export default defineConfig({
       ENCRYPTION_KEY:
         "0000000000000000000000000000000000000000000000000000000000000000",
       META_APP_SECRET: "test-meta-app-secret",
+      // Deliberately a DIFFERENT literal from META_APP_SECRET: the
+      // Messenger webhook tests assert the App Secret alone cannot
+      // satisfy GET verification, which is only a meaningful assertion
+      // while these two values differ.
+      MESSENGER_WEBHOOK_VERIFY_TOKEN: "test-messenger-verify-token",
     },
     clearMocks: true,
   },

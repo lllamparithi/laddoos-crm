@@ -21,10 +21,21 @@
 // current single-tenant deployment, and it fails LOUDLY rather than
 // guessing if a second account ever appears.
 //
-// Reuses verifyMetaWebhookSignature() unchanged — same Meta App, same
-// HMAC-SHA256(META_APP_SECRET) scheme, no new secret. GET verification
-// compares hub.verify_token against META_APP_SECRET directly, matching
-// the Instagram route (there is no per-Page verify_token row to check).
+// TWO SECRETS, SEPARATED BY PURPOSE — do not collapse them:
+//
+//   POST — verifyMetaWebhookSignature() reads META_APP_SECRET only. It
+//          is an HMAC signing key and must never be used as anything
+//          else.
+//   GET  — hub.verify_token is compared against
+//          MESSENGER_WEBHOOK_VERIFY_TOKEN only, with NO fallback to
+//          META_APP_SECRET.
+//
+// The verify token is typed into Meta's callback-setup dashboard and
+// travels in a query string on every verification request, so it can
+// land in access logs, browser history and Referer headers. Reusing the
+// App Secret there would expose the HMAC signing key through all of
+// those channels — anyone holding it could forge signed POSTs. Each
+// variable fails closed independently when absent.
 //
 // NOTE ON object TYPE: Meta delivers Page-scoped Messenger events with
 // object === 'page' (not 'messenger'). Instagram's route rejects 'page'
@@ -78,16 +89,21 @@ export async function GET(request: Request) {
   const mode = searchParams.get('hub.mode')
   const challenge = searchParams.get('hub.challenge')
   const verifyToken = searchParams.get('hub.verify_token')
-  const appSecret = process.env.META_APP_SECRET
+  // Deliberately NOT META_APP_SECRET, and deliberately no `??` fallback
+  // to it — see the header note. An empty string is falsy here, so a
+  // blank variable fails closed exactly like an absent one.
+  const expectedToken = process.env.MESSENGER_WEBHOOK_VERIFY_TOKEN
 
   if (mode !== 'subscribe' || !challenge || !verifyToken) {
     return NextResponse.json({ error: 'Missing verification parameters' }, { status: 400 })
   }
-  if (!appSecret) {
-    console.error('[messenger/webhook] META_APP_SECRET is not set — rejecting verification')
+  if (!expectedToken) {
+    console.error(
+      '[messenger/webhook] MESSENGER_WEBHOOK_VERIFY_TOKEN is not set — rejecting verification'
+    )
     return NextResponse.json({ error: 'Verification failed' }, { status: 403 })
   }
-  if (!constantTimeEquals(verifyToken, appSecret)) {
+  if (!constantTimeEquals(verifyToken, expectedToken)) {
     return NextResponse.json({ error: 'Verification token mismatch' }, { status: 403 })
   }
 

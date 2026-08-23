@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   supabaseAdmin: vi.fn(() => ({ name: 'admin-client' })),
@@ -34,11 +34,24 @@ vi.mock('@/lib/timeline/ingest', () => ({
 
 import { GET, POST } from './route'
 
-const SECRET = process.env.META_APP_SECRET!
+// Two distinct secrets, separated by purpose. APP_SECRET signs POST
+// bodies (HMAC); VERIFY_TOKEN answers the GET handshake. The tests below
+// assert neither can stand in for the other.
+const APP_SECRET = process.env.META_APP_SECRET!
+const VERIFY_TOKEN = process.env.MESSENGER_WEBHOOK_VERIFY_TOKEN!
 const SENDER_ID = 'psid-123'
 const TIMESTAMP = 1735689600000
 
-function signedHeader(body: string, secret: string = SECRET): string {
+// Guards the whole file: if these ever become the same literal, the
+// separation tests would pass vacuously.
+if (APP_SECRET === VERIFY_TOKEN) {
+  throw new Error(
+    'META_APP_SECRET and MESSENGER_WEBHOOK_VERIFY_TOKEN must differ in the ' +
+      'test env, or the secret-separation assertions prove nothing'
+  )
+}
+
+function signedHeader(body: string, secret: string = APP_SECRET): string {
   const hex = crypto.createHmac('sha256', secret).update(body).digest('hex')
   return `sha256=${hex}`
 }
@@ -88,16 +101,24 @@ beforeEach(() => {
 
 // ── Handshake ────────────────────────────────────────────────
 
-describe('GET /api/messenger/webhook — handshake', () => {
-  function verifyUrl(params: Record<string, string>) {
-    const url = new URL('http://localhost/api/messenger/webhook')
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
-    return new Request(url)
-  }
+function verifyUrl(params: Record<string, string>) {
+  const url = new URL('http://localhost/api/messenger/webhook')
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+  return new Request(url)
+}
 
-  it('echoes the challenge when the verify token matches META_APP_SECRET', async () => {
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+describe('GET /api/messenger/webhook — handshake', () => {
+  it('echoes the challenge when the verify token matches MESSENGER_WEBHOOK_VERIFY_TOKEN', async () => {
     const response = await GET(
-      verifyUrl({ 'hub.mode': 'subscribe', 'hub.challenge': 'abc123', 'hub.verify_token': SECRET })
+      verifyUrl({
+        'hub.mode': 'subscribe',
+        'hub.challenge': 'abc123',
+        'hub.verify_token': VERIFY_TOKEN,
+      })
     )
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('abc123')
@@ -110,15 +131,29 @@ describe('GET /api/messenger/webhook — handshake', () => {
     expect(response.status).toBe(403)
   })
 
-  it('rejects a verify token that only shares a prefix with the secret', async () => {
+  it('rejects a verify token that only shares a prefix with the real one', async () => {
     const response = await GET(
       verifyUrl({
         'hub.mode': 'subscribe',
         'hub.challenge': 'abc123',
-        'hub.verify_token': SECRET.slice(0, 4),
+        'hub.verify_token': VERIFY_TOKEN.slice(0, 4),
       })
     )
     expect(response.status).toBe(403)
+  })
+
+  it('rejects a request missing the verify token entirely', async () => {
+    const response = await GET(
+      verifyUrl({ 'hub.mode': 'subscribe', 'hub.challenge': 'abc123' })
+    )
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects an empty verify token', async () => {
+    const response = await GET(
+      verifyUrl({ 'hub.mode': 'subscribe', 'hub.challenge': 'abc123', 'hub.verify_token': '' })
+    )
+    expect(response.status).toBe(400)
   })
 
   it('rejects a request missing required params', async () => {
@@ -128,9 +163,94 @@ describe('GET /api/messenger/webhook — handshake', () => {
 
   it('rejects a mode other than subscribe', async () => {
     const response = await GET(
-      verifyUrl({ 'hub.mode': 'unsubscribe', 'hub.challenge': 'abc', 'hub.verify_token': SECRET })
+      verifyUrl({
+        'hub.mode': 'unsubscribe',
+        'hub.challenge': 'abc',
+        'hub.verify_token': VERIFY_TOKEN,
+      })
     )
     expect(response.status).toBe(400)
+  })
+})
+
+// ── Secret separation (GET token vs POST HMAC key) ───────────
+
+describe('GET /api/messenger/webhook — the App Secret is not a verify token', () => {
+  it('rejects META_APP_SECRET presented as the verify token', async () => {
+    const response = await GET(
+      verifyUrl({
+        'hub.mode': 'subscribe',
+        'hub.challenge': 'abc123',
+        'hub.verify_token': APP_SECRET,
+      })
+    )
+    expect(response.status).toBe(403)
+  })
+
+  // NOTE: these delete the variable with `undefined` rather than setting
+  // it to ''. A `?? META_APP_SECRET` fallback is invisible to an
+  // empty-string stub (nullish coalescing does not fire on ''), so an
+  // '' stub would let the forbidden fallback pass undetected. Verified
+  // by control: reintroducing the fallback fails the next test.
+  it('does not fall back to META_APP_SECRET when the verify token variable is absent', async () => {
+    vi.stubEnv('MESSENGER_WEBHOOK_VERIFY_TOKEN', undefined)
+    expect(process.env.MESSENGER_WEBHOOK_VERIFY_TOKEN).toBeUndefined()
+
+    const response = await GET(
+      verifyUrl({
+        'hub.mode': 'subscribe',
+        'hub.challenge': 'abc123',
+        'hub.verify_token': APP_SECRET,
+      })
+    )
+    expect(response.status).toBe(403)
+  })
+
+  it('fails closed with a config error when the verify token variable is absent', async () => {
+    vi.stubEnv('MESSENGER_WEBHOOK_VERIFY_TOKEN', undefined)
+    const response = await GET(
+      verifyUrl({
+        'hub.mode': 'subscribe',
+        'hub.challenge': 'abc123',
+        'hub.verify_token': VERIFY_TOKEN,
+      })
+    )
+    expect(response.status).toBe(403)
+    // Distinct from the mismatch case below — asserts the explicit
+    // fail-closed branch ran, not that a comparison happened to fail.
+    expect(await response.json()).toEqual({ error: 'Verification failed' })
+  })
+
+  it('reports a mismatch (not a config error) when the variable is set but the token is wrong', async () => {
+    const response = await GET(
+      verifyUrl({ 'hub.mode': 'subscribe', 'hub.challenge': 'abc123', 'hub.verify_token': 'wrong' })
+    )
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'Verification token mismatch' })
+  })
+
+  it('fails closed when the verify token variable is set but empty', async () => {
+    vi.stubEnv('MESSENGER_WEBHOOK_VERIFY_TOKEN', '')
+    const response = await GET(
+      verifyUrl({ 'hub.mode': 'subscribe', 'hub.challenge': 'abc123', 'hub.verify_token': 'x' })
+    )
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'Verification failed' })
+  })
+
+  it('verifies the handshake without reading META_APP_SECRET at all', async () => {
+    // GET must succeed with the App Secret removed entirely — the only
+    // secret it may consult is the verify token.
+    vi.stubEnv('META_APP_SECRET', undefined)
+    const response = await GET(
+      verifyUrl({
+        'hub.mode': 'subscribe',
+        'hub.challenge': 'abc123',
+        'hub.verify_token': VERIFY_TOKEN,
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('abc123')
   })
 })
 
@@ -162,6 +282,31 @@ describe('POST /api/messenger/webhook — signature', () => {
     const signature = signedHeader(messagingPayload)
     const tampered = messagingPayload.replace('mid-1', 'mid-tampered')
     const response = await POST(postRequest(tampered, signature))
+    expect(response.status).toBe(403)
+    expect(mocks.recordMessengerMessageEvent).not.toHaveBeenCalled()
+  })
+
+  it('rejects a body signed with the GET verify token instead of the App Secret', async () => {
+    const response = await POST(
+      postRequest(messagingPayload, signedHeader(messagingPayload, VERIFY_TOKEN))
+    )
+    expect(response.status).toBe(403)
+    expect(mocks.recordMessengerMessageEvent).not.toHaveBeenCalled()
+  })
+
+  it('accepts an App-Secret-signed body while the GET verify token is absent', async () => {
+    // POST must not depend on MESSENGER_WEBHOOK_VERIFY_TOKEN in any way.
+    vi.stubEnv('MESSENGER_WEBHOOK_VERIFY_TOKEN', undefined)
+    const response = await POST(postRequest(messagingPayload, signedHeader(messagingPayload)))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.recorded).toBe(1)
+  })
+
+  it('fails closed when META_APP_SECRET is absent, even with the verify token present', async () => {
+    vi.stubEnv('META_APP_SECRET', undefined)
+    const response = await POST(postRequest(messagingPayload, signedHeader(messagingPayload)))
     expect(response.status).toBe(403)
     expect(mocks.recordMessengerMessageEvent).not.toHaveBeenCalled()
   })
