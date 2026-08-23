@@ -29,6 +29,8 @@ import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
 // Public API
 // ------------------------------------------------------------
 
+import { dispatchConversationAssigned } from './dispatch-assignment'
+
 export interface AutomationContext {
   /** Raw message text, for keyword_match + message_content conditions. */
   message_text?: string
@@ -501,6 +503,21 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .update({ assigned_agent_id: agentId })
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
+      // Deliberately does NOT fire `conversation_assigned`. Routed through
+      // the shared helper with origin 'automation' so the loop guard is
+      // enforced in one place and covered by tests, rather than being an
+      // absence a future edit could quietly undo: an assign automation
+      // re-triggering assign automations would recurse without bound.
+      await dispatchConversationAssigned(
+        {
+          accountId: args.automation.account_id,
+          conversationId: args.context?.conversation_id ?? '',
+          contactId: args.contactId,
+          nextAgentId: agentId,
+          origin: 'automation',
+        },
+        runAutomationsForTrigger,
+      )
       return `assigned to ${agentId}`
     }
 

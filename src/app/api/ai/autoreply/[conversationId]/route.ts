@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
+import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { dispatchConversationAssigned } from '@/lib/automations/dispatch-assignment'
 
 type Params = { params: Promise<{ conversationId: string }> }
 
@@ -14,7 +16,7 @@ type Params = { params: Promise<{ conversationId: string }> }
  *   - paused: true  → pause the bot here (a human is taking over). When
  *                     `assign_to_me` is set, also assign the thread to the
  *                     caller (the usual "Take over" flow). Assignment
- *                     fires the `on_conversation_assigned` trigger.
+ *                     fires the `conversation_assigned` trigger.
  *   - paused: false → hand the thread back to the bot: clear the pause,
  *                     reset the per-conversation reply count so it gets
  *                     fresh slots, and clear the handoff note. If the
@@ -47,7 +49,10 @@ export async function POST(request: Request, { params }: Params) {
     // Confirm the conversation is in the caller's account before writing.
     const { data: conv, error: convErr } = await supabase
       .from('conversations')
-      .select('id')
+      // assigned_agent_id + contact_id feed the conversation_assigned
+      // dispatch below: the previous assignee decides whether this is a
+      // real change, and the contact is the automation's subject.
+      .select('id, assigned_agent_id, contact_id')
       .eq('id', conversationId)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -95,6 +100,23 @@ export async function POST(request: Request, { params }: Params) {
         { status: 500 },
       )
     }
+
+    // Assignment succeeded. Fire conversation_assigned for the "Take
+    // over" handoff. Awaited but non-blocking by contract: the helper
+    // never rejects, so a failing automation cannot turn a completed
+    // handoff into a 500.
+    await dispatchConversationAssigned(
+      {
+        accountId,
+        conversationId,
+        contactId: (conv as { contact_id?: string | null }).contact_id ?? null,
+        previousAgentId: (conv as { assigned_agent_id?: string | null })
+          .assigned_agent_id ?? null,
+        nextAgentId: (update.assigned_agent_id as string | null | undefined) ?? null,
+        origin: 'ai_handoff',
+      },
+      runAutomationsForTrigger,
+    )
 
     return NextResponse.json({ success: true, paused })
   } catch (err) {

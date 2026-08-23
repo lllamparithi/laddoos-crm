@@ -821,14 +821,24 @@ export function MessageThread({
     async (agentId: string | null) => {
       if (!conversation) return;
 
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("conversations")
-        .update({ assigned_agent_id: agentId })
-        .eq("id", conversation.id);
+      // Server-authoritative. The browser sends only the requested
+      // assignee; the server loads the conversation, validates the
+      // assignee belongs to the account, persists the change and derives
+      // the automation context from stored rows. Previously this wrote
+      // assigned_agent_id directly and then posted its own trigger and
+      // contact to /api/automations/engine, which let a caller forge a
+      // conversation_assigned event.
+      const res = await fetch(
+        `/api/conversations/${conversation.id}/assign`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent_id: agentId }),
+        },
+      ).catch(() => null);
 
-      if (error) {
-        console.error("Failed to update assignment:", error);
+      if (!res || !res.ok) {
+        console.error("Failed to update assignment", res?.status);
         toast.error("Failed to update assignment");
         return;
       }
