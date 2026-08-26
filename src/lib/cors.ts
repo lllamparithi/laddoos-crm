@@ -1,12 +1,18 @@
 // ============================================================
 // CORS for the Phase 2A anonymous endpoints — and ONLY those.
 //
-// Two routes need cross-origin browser access, because the Laddoos
+// Three routes need cross-origin browser access, because the Laddoos
 // marketing website is served from a different origin than this CRM's
 // API (e.g. laddoos.com calling admin.laddoosdotcom.in):
 //
 //   POST /api/web-events
 //   GET  /api/continuation-tokens/resolve
+//   GET  /api/yali/voice-config
+//
+// (voice-config is actually called server-to-server, from
+// laddoos-website's own /api/livekit-token route, not the browser
+// directly — it's on this list anyway so a future same-origin-only
+// refactor doesn't have to rediscover why CORS is here.)
 //
 // Nothing else in this app gets CORS. Not the /api/v1 API-key routes,
 // not the cookie-session dashboard routes, not the WhatsApp or
