@@ -36,6 +36,7 @@ import {
 } from '@/lib/identity/workspace-context'
 import { recordIdentityHandle } from '@/lib/identity/handles'
 import { recordInstagramMessageEvent } from '@/lib/timeline/ingest'
+import { projectTimelineEventToThread } from '@/lib/inbox/channel-threads'
 
 interface InstagramMessagingEvent {
   sender?: { id?: string }
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
           handleValue: senderId,
         })
 
-        await recordInstagramMessageEvent(db, {
+        const recordedEvent = await recordInstagramMessageEvent(db, {
           accountId,
           tenantId,
           brandId,
@@ -142,6 +143,20 @@ export async function POST(request: Request) {
           summary: event.message?.text ?? '[non-text Instagram message]',
           occurredAt: event.timestamp ? new Date(event.timestamp) : undefined,
           payloadRef: { ig_sender_id: senderId },
+        })
+
+        // Project the fact into the operational Inbox queue. The
+        // timestamp comes from the PERSISTED row, not the payload: this
+        // route defaults occurred_at server-side when Meta omits a
+        // timestamp, so re-deriving it here would let the thread's
+        // activity time drift from the event that caused it. (That
+        // server-side defaulting is a known replay gap, tracked
+        // separately — this PR deliberately does not change it.)
+        await projectTimelineEventToThread(db, {
+          accountId,
+          channel: 'instagram',
+          handleId: handle.id,
+          occurredAt: new Date(recordedEvent.occurred_at),
         })
         recorded++
       }

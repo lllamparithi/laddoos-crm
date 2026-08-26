@@ -54,6 +54,7 @@ import {
 } from '@/lib/identity/workspace-context'
 import { recordIdentityHandle } from '@/lib/identity/handles'
 import { recordMessengerMessageEvent } from '@/lib/timeline/ingest'
+import { projectTimelineEventToThread } from '@/lib/inbox/channel-threads'
 
 interface MessengerMessagingEvent {
   sender?: { id?: string }
@@ -180,6 +181,19 @@ export async function POST(request: Request) {
           summary: event.message?.text ?? '[non-text Messenger message]',
           occurredAt,
           payloadRef: { messenger_sender_id: senderId },
+        })
+
+        // Project the fact into the operational Inbox queue. Runs AFTER
+        // the timeline write so the canonical fact is durable first — a
+        // thread without its event is a recoverable inconsistency (the
+        // next event re-upserts it), an event without its thread is
+        // merely invisible in the Inbox until the next one arrives.
+        // Idempotent, so a replay changes nothing.
+        await projectTimelineEventToThread(db, {
+          accountId,
+          channel: 'messenger',
+          handleId: handle.id,
+          occurredAt,
         })
         recorded++
       }

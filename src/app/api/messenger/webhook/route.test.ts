@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   resolveSingleAccountWorkspaceContext: vi.fn(),
   recordIdentityHandle: vi.fn(),
   recordMessengerMessageEvent: vi.fn(),
+  projectTimelineEventToThread: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: mocks.supabaseAdmin }))
@@ -27,6 +28,10 @@ vi.mock('@/lib/identity/handles', () => ({
 
 vi.mock('@/lib/timeline/ingest', () => ({
   recordMessengerMessageEvent: mocks.recordMessengerMessageEvent,
+}))
+
+vi.mock('@/lib/inbox/channel-threads', () => ({
+  projectTimelineEventToThread: mocks.projectTimelineEventToThread,
 }))
 
 // verifyMetaWebhookSignature is deliberately NOT mocked — these POST
@@ -95,8 +100,13 @@ beforeEach(() => {
     tenantId: 'tenant-1',
     brandId: 'brand-1',
   })
+  mocks.projectTimelineEventToThread.mockReset()
   mocks.recordIdentityHandle.mockResolvedValue({ id: 'handle-1' })
-  mocks.recordMessengerMessageEvent.mockResolvedValue({ id: 'event-1' })
+  mocks.recordMessengerMessageEvent.mockResolvedValue({
+    id: 'event-1',
+    occurred_at: new Date(TIMESTAMP).toISOString(),
+  })
+  mocks.projectTimelineEventToThread.mockResolvedValue('thread-1')
 })
 
 // ── Handshake ────────────────────────────────────────────────
@@ -440,6 +450,64 @@ describe('POST /api/messenger/webhook — identity handle and timeline write sha
     )
   })
 
+  it('projects the event into a messenger channel thread', async () => {
+    await POST(postRequest(messagingPayload, signedHeader(messagingPayload)))
+
+    expect(mocks.projectTimelineEventToThread).toHaveBeenCalledWith(
+      { name: 'admin-client' },
+      {
+        accountId: 'account-1',
+        channel: 'messenger',
+        handleId: 'handle-1',
+        occurredAt: new Date(TIMESTAMP),
+      }
+    )
+  })
+
+  it('projects AFTER the timeline write, so the canonical fact lands first', async () => {
+    const order: string[] = []
+    mocks.recordMessengerMessageEvent.mockImplementation(async () => {
+      order.push('event')
+      return { id: 'event-1', occurred_at: new Date(TIMESTAMP).toISOString() }
+    })
+    mocks.projectTimelineEventToThread.mockImplementation(async () => {
+      order.push('projection')
+      return 'thread-1'
+    })
+
+    await POST(postRequest(messagingPayload, signedHeader(messagingPayload)))
+    expect(order).toEqual(['event', 'projection'])
+  })
+
+  it('never passes a contact to the projection', async () => {
+    await POST(postRequest(messagingPayload, signedHeader(messagingPayload)))
+
+    const args = mocks.projectTimelineEventToThread.mock.calls[0][1]
+    expect(Object.keys(args)).not.toContain('contactId')
+    expect(Object.keys(args)).not.toContain('contact_id')
+  })
+
+  it('does not project when the event is skipped (echo)', async () => {
+    const echo = JSON.stringify({
+      object: 'page',
+      entry: [
+        {
+          id: 'page-1',
+          time: TIMESTAMP,
+          messaging: [
+            {
+              sender: { id: 'page-1' },
+              timestamp: TIMESTAMP,
+              message: { mid: 'mid-echo', text: 'ours', is_echo: true },
+            },
+          ],
+        },
+      ],
+    })
+    await POST(postRequest(echo, signedHeader(echo)))
+    expect(mocks.projectTimelineEventToThread).not.toHaveBeenCalled()
+  })
+
   it('records the handle before the timeline event, so the event can carry handle_id', async () => {
     const order: string[] = []
     mocks.recordIdentityHandle.mockImplementation(async () => {
@@ -697,11 +765,17 @@ describe('POST /api/messenger/webhook — non-message and unsupported payloads',
 
 describe('POST /api/messenger/webhook — stays out of the inbox tables', () => {
   it('imports no contacts/conversations/messages/automation module', async () => {
-    // The strongest guarantee available at unit-test level: the route
-    // module's own source declares no dependency on any inbox,
-    // assignment, automation, template or AI module. If a future change
-    // wires Messenger into the inbox, this fails and forces the
-    // Timeline-to-Inbox projection conversation to happen explicitly.
+    // The route may depend on exactly ONE inbox module — the approved
+    // Timeline-to-Inbox projection, which writes only channel_threads
+    // (operational queue state) and never crm.messages/conversations.
+    // Everything else stays forbidden, so a future change that reaches
+    // for the WhatsApp inbox tables, automations, templates or AI still
+    // fails here and forces an explicit decision.
+    //
+    // Narrowed (not deleted) when the projection landed: the original
+    // blanket '@/lib/inbox' ban had done its job — it failed the moment
+    // this route was wired to the inbox, which is precisely the review
+    // conversation it existed to force.
     const { readFileSync } = await import('node:fs')
     const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8')
     const importLines = source
@@ -709,13 +783,18 @@ describe('POST /api/messenger/webhook — stays out of the inbox tables', () => 
       .filter((line) => line.trimStart().startsWith('import '))
       .join('\n')
 
+    const allowedInboxImport = '@/lib/inbox/channel-threads'
+    const inboxImports = importLines
+      .split('\n')
+      .filter((line) => line.includes('@/lib/inbox'))
+    expect(inboxImports.every((line) => line.includes(allowedInboxImport))).toBe(true)
+
     for (const forbidden of [
-      '@/lib/inbox',
       '@/lib/contacts',
       '@/lib/automations',
       '@/lib/whatsapp/send-message',
       '@/lib/ai',
-      'conversations',
+      '@/lib/inbox/conversations',
       'message-templates',
     ]) {
       expect(importLines).not.toContain(forbidden)

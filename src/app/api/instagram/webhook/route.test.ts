@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   resolveSingleAccountWorkspaceContext: vi.fn(),
   recordIdentityHandle: vi.fn(),
   recordInstagramMessageEvent: vi.fn(),
+  projectTimelineEventToThread: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: mocks.supabaseAdmin }))
@@ -27,6 +28,10 @@ vi.mock('@/lib/identity/handles', () => ({
 
 vi.mock('@/lib/timeline/ingest', () => ({
   recordInstagramMessageEvent: mocks.recordInstagramMessageEvent,
+}))
+
+vi.mock('@/lib/inbox/channel-threads', () => ({
+  projectTimelineEventToThread: mocks.projectTimelineEventToThread,
 }))
 
 // verifyMetaWebhookSignature itself is NOT mocked — the whole point of
@@ -62,7 +67,12 @@ beforeEach(() => {
     brandId: 'brand-1',
   })
   mocks.recordIdentityHandle.mockResolvedValue({ id: 'handle-1' })
-  mocks.recordInstagramMessageEvent.mockResolvedValue({ id: 'event-1' })
+  mocks.projectTimelineEventToThread.mockReset()
+  mocks.recordInstagramMessageEvent.mockResolvedValue({
+    id: 'event-1',
+    occurred_at: '2026-01-01T00:00:00.000Z',
+  })
+  mocks.projectTimelineEventToThread.mockResolvedValue('thread-1')
 })
 
 describe('GET /api/instagram/webhook', () => {
@@ -144,11 +154,47 @@ describe('POST /api/instagram/webhook', () => {
     )
   })
 
+  it('projects the event into an instagram channel thread', async () => {
+    await POST(postRequest(messagingPayload, signedHeader(messagingPayload)))
+
+    expect(mocks.projectTimelineEventToThread).toHaveBeenCalledWith(
+      { name: 'admin-client' },
+      expect.objectContaining({
+        accountId: 'account-1',
+        channel: 'instagram',
+        handleId: 'handle-1',
+      })
+    )
+  })
+
+  it('projects using the PERSISTED occurred_at, not the raw payload timestamp', async () => {
+    // This route may default occurred_at server-side when Meta omits a
+    // timestamp, so the thread's activity time must come from the row
+    // that was actually written, or the two drift apart.
+    mocks.recordInstagramMessageEvent.mockResolvedValue({
+      id: 'event-1',
+      occurred_at: '2027-09-09T09:09:09.000Z',
+    })
+    await POST(postRequest(messagingPayload, signedHeader(messagingPayload)))
+
+    const args = mocks.projectTimelineEventToThread.mock.calls[0][1]
+    expect(args.occurredAt).toEqual(new Date('2027-09-09T09:09:09.000Z'))
+  })
+
+  it('never passes a contact to the projection', async () => {
+    await POST(postRequest(messagingPayload, signedHeader(messagingPayload)))
+
+    const args = mocks.projectTimelineEventToThread.mock.calls[0][1]
+    expect(Object.keys(args)).not.toContain('contactId')
+    expect(Object.keys(args)).not.toContain('contact_id')
+  })
+
   it('acknowledges but skips a payload for a different object type', async () => {
     const other = JSON.stringify({ object: 'page', entry: [] })
     const response = await POST(postRequest(other, signedHeader(other)))
     expect(response.status).toBe(200)
     expect(mocks.recordIdentityHandle).not.toHaveBeenCalled()
+    expect(mocks.projectTimelineEventToThread).not.toHaveBeenCalled()
   })
 
   it('skips echoes of our own outbound messages', async () => {
